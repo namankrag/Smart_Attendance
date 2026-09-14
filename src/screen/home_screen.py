@@ -21,7 +21,7 @@ def home_screen():
 
     with col1:
         st.header("I'm Student")
-        st.image(student_img, width = 120)
+        st.image(student_img, width = 145)
 
         if st.button('Student Portal', type = 'primary', icon = ":material/arrow_outward:", icon_position = "right"):
             st.session_state["login_type"] = "student"

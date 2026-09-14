@@ -12,6 +12,28 @@ def style_bg_home():
                 background-color : #E0E3FF !important;
                 padding : 2.5rem !important;
                 border-radius : 5rem !important;
+                display : flex !important;
+                flex-direction : column !important;
+                align-items : flex-start !important;
+            }
+
+            .stApp div[data-testid = "stColumn"] > div:first-child {
+                display : flex !important;
+                flex-direction : column !important;
+                height : 100% !important;
+                width : 100% !important;
+            }
+
+            .stApp div[data-testid = "stColumn"] .stImage {
+                flex : 1 !important;
+                display : flex !important;
+                align-items : center !important;
+            }
+
+            .stApp div[data-testid = "stColumn"] img {
+                height : 145px !important;
+                width : auto !important;
+                object-fit : contain !important;
             }
         </style>
 
@@ -49,7 +71,7 @@ def style_base_layout():
             h1 {
                 font-family : 'Climate Crisis', sans-serif !important;
                 font-size : 3.5rem !important;
-                line-height : 1.1 1important;
+                line-height : 1.1 !important;
                 margin-bottom : 0rem !important;
             }
                 
