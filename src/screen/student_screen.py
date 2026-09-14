@@ -7,3 +7,5 @@ from src.components.footer import footer_dashboard
 from PIL import Image
 import numpy as np
 
+def student_screen():
+    st.header('Student screen')
