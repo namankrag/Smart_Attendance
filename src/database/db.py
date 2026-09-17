@@ -30,7 +30,7 @@ def get_all_students():
 
 def create_student(new_name, face_embedding = None, voice_embedding = None):
     data = {'name' : new_name, 'face_embedding' : face_embedding, 'voice_embedding' : voice_embedding}
-    response = supabase.table('student').insert(data).execute()
+    response = supabase.table('students').insert(data).execute()
     return response.data
 
 def create_subject(sub_code, name, sec, teach_id):
@@ -39,7 +39,7 @@ def create_subject(sub_code, name, sec, teach_id):
     return response.data
 
 def get_teacher_subjects(teach_id):
-    response = supabase.table('subjects').select("*", subject_students(count), attendance_logs(timestamp)).eq("teacher_id", teach_id).execute()
+    response = supabase.table('subjects').select("*, subject_students(count), attendance_logs(timestamp)").eq("teacher_id", teach_id).execute()
 
     subjects = response.data
 

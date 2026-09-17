@@ -8,7 +8,7 @@ from src.database.db import get_all_students
 
 @st.cache_resource
 def load_dilib_models():
-    detector = dlib.get_frontal_face_dector()
+    detector = dlib.get_frontal_face_detector()
 
     sp = dlib.shape_predictor(
         face_recognition_models.pose_predictor_model_location()
@@ -76,3 +76,22 @@ def predict_attendance(class_image_np):
         return detected_student, [], len(encodings)
 
     clf = model_data['clf']
+    X_train = model_data['X']
+    y_train = model_data['y']
+
+    all_stud = sorted(list(set(y_train)))
+
+    for encode in encodings:
+        if len(all_stud) >= 2:
+            pred_id = int(clf.predict([encode])[0])
+        else:
+            pred_id = int(all_stud[0])
+
+        stud_emb = X_train[y_train.index(pred_id)]
+        best_match_src = np.linalg.norm(stud_emb - encode)
+        resemblance_threshold = 0.6
+
+        if best_match_src <= resemblance_threshold:
+            detected_student[pred_id] = True
+
+    return detected_student, all_stud, len(encodings)
