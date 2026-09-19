@@ -81,17 +81,26 @@ def predict_attendance(class_image_np):
 
     all_stud = sorted(list(set(y_train)))
 
+    CONFIDENCE_THRESHOLD = 0.70   # SVM probability must be at least 70%
+    DISTANCE_THRESHOLD   = 0.55   # Euclidean distance must be within 0.55
+
     for encode in encodings:
         if len(all_stud) >= 2:
-            pred_id = int(clf.predict([encode])[0])
+            proba = clf.predict_proba([encode])[0]
+            best_idx = int(np.argmax(proba))
+            best_conf = proba[best_idx]
+            pred_id = int(clf.classes_[best_idx])
+
+            if best_conf < CONFIDENCE_THRESHOLD:
+                continue  # not confident enough — reject
         else:
             pred_id = int(all_stud[0])
 
+        # Secondary check: Euclidean distance to the stored embedding
         stud_emb = X_train[y_train.index(pred_id)]
-        best_match_src = np.linalg.norm(stud_emb - encode)
-        resemblance_threshold = 0.6
+        distance = np.linalg.norm(stud_emb - encode)
 
-        if best_match_src <= resemblance_threshold:
+        if distance <= DISTANCE_THRESHOLD:
             detected_student[pred_id] = True
 
     return detected_student, all_stud, len(encodings)

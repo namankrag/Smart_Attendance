@@ -12,7 +12,7 @@ def footer_home():
     logo_b64 = _img_to_base64(BASE_DIR / "img" / "NKA.png")
 
     st.markdown(f"""
-    <div style = "margin-top : 2rem; display : flex; gap : 6px; justify-content : center; items-allign : center">
+    <div style = "margin-top : 2rem; display : flex; gap : 6px; justify-content : center; align-items : center">
         <p style = "font-weight : bold; color : white;"> Created by </p>
         <img src = 'data:image/png;base64,{logo_b64}' style = 'max-height : 25px' />
     </div> 
@@ -23,7 +23,7 @@ def footer_dashboard():
     logo_b64 = _img_to_base64(BASE_DIR / "img" / "NKA.png")
     
     st.markdown(f"""
-    <div style = "margin-top : 2rem; display : flex; gap : 6px; justify-content : center; items-allign : center">
+    <div style = "margin-top : 2rem; display : flex; gap : 6px; justify-content : center; align-items : center">
         <p style = "font-weight : bold; color : black;"> Created by </p>
         <img src = 'data:image/png;base64,{logo_b64}' style = 'max-height : 25px' />
     </div> 

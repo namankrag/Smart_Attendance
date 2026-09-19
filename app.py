@@ -5,7 +5,7 @@ import base64
 from src.screen.home_screen import home_screen
 from src.screen.teacher_screen import teacher_screen
 from src.screen.student_screen import student_screen
-from src.components.dilog_auto_enroll import auto_enroll
+from src.components.dialog_auto_enroll import auto_enroll
 
 BASE_DIR = Path(__file__).parent.resolve()
 

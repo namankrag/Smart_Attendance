@@ -8,7 +8,7 @@ def auto_enroll(sub_code):
     stud_id = st.session_state.student_data['student_id']
     res = supabase.table('subjects').select('subject_id, name').eq('subject_code', sub_code).execute()
     if not res.data:
-        st.error("Subjet code not found!")
+        st.error("Subject code not found!")
         if st.button('Close'):
             st.query_params.clear()
             st.rerun()

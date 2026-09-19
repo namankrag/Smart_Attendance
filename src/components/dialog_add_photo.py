@@ -1,11 +1,8 @@
 import streamlit as st
-from src.database.db import enroll_student_to_subject
-from src.database.config import supabase
 from PIL import Image
-import time
 
 @st.dialog("Capture or upload photos")
-def add_photos_dilog():
+def add_photos_dialog():
     st.write("Add classroom photo to scan attendance")
     if 'photo_tab' not in st.session_state:
         st.session_state.photo_tab = 'camera'

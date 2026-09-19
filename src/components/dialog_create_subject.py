@@ -2,7 +2,7 @@ import streamlit as st
 from src.database.db import create_subject
 
 @st.dialog("Create New Subject")
-def create_subject_dilog(teach_id):
+def create_subject_dialog(teach_id):
     st.write("Enter details of new subject")
     sub_id = st.text_input("Subject Code", placeholder = "MPW")
     sub_name  = st.text_input("Subject Name", placeholder = "Mini Project Work")
