@@ -3,11 +3,13 @@ import time
 from src.database.db import enroll_student_to_subject
 from src.database.config import supabase
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 
 @st.dialog("Quick Enrollment")
 def auto_enroll(sub_code):
     stud_id = st.session_state.student_data['student_id']
     res = supabase.table('subjects').select('subject_id, name').eq('subject_code', sub_code).execute()
+    dark = is_dark_theme()
 
     if not res.data:
         dialog_banner("Not Found", subtitle="This subject code does not exist", theme="pink")
@@ -30,9 +32,13 @@ def auto_enroll(sub_code):
 
     dialog_banner("Quick Enrollment", subtitle="You received a class invitation", theme="purple")
 
+    card_bg = "linear-gradient(135deg, #312e81, #1e1b4b)" if dark else "linear-gradient(135deg, #ede9fe, #e0e7ff)"
+    sub_title_col = "#a5b4fc" if dark else "#5144d3"
+    sub_text_col = "#cbd5e1" if dark else "#64748b"
+
     st.markdown(f"""
         <div style="
-            background: linear-gradient(135deg, #ede9fe, #e0e7ff);
+            background: {card_bg};
             border-radius: 16px;
             padding: 20px;
             text-align: center;
@@ -43,13 +49,13 @@ def auto_enroll(sub_code):
                 font-family: Outfit, sans-serif;
                 font-size: 1.1rem;
                 font-weight: 700;
-                color: #5144d3;
+                color: {sub_title_col};
                 margin: 8px 0 4px;
             ">{subject['name']}</p>
             <p style="
                 font-family: Outfit, sans-serif;
                 font-size: 0.88rem;
-                color: #64748b;
+                color: {sub_text_col};
                 margin: 0;
             ">Would you like to join this class?</p>
         </div>

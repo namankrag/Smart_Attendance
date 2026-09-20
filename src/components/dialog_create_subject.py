@@ -1,6 +1,7 @@
 import streamlit as st
 from src.database.db import create_subject
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 
 @st.dialog("Create New Subject")
 def create_subject_dialog(teach_id):
@@ -9,16 +10,18 @@ def create_subject_dialog(teach_id):
         subtitle="Fill in the details to create a new class",
         theme="purple"
     )
+    dark = is_dark_theme()
+    lbl_color = "#818cf8" if dark else "#5144d3"
 
-    st.markdown("""
+    st.markdown(f"""
         <style>
-            div[data-testid="stTextInput"] label {
+            div[data-testid="stTextInput"] label {{
                 font-family: Outfit, sans-serif;
                 font-weight: 600;
-                color: #5144d3;
+                color: {lbl_color};
                 font-size: 0.92rem;
                 letter-spacing: 0.5px;
-            }
+            }}
         </style>
     """, unsafe_allow_html=True)
 

@@ -4,8 +4,8 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 
-from src.ui.base_layout import style_bg_dashboard, style_base_layout
-from src.components.header import header_dashboard
+from src.ui.base_layout import style_bg_dashboard, style_base_layout, is_dark_theme
+from src.components.header import header_dashboard, theme_toggle
 from src.components.footer import footer_dashboard
 from src.database.db import check_teacher_exists, create_teacher, teacher_login, get_teacher_subjects, get_attendance_for_teacher
 from src.components.dialog_create_subject import create_subject_dialog
@@ -39,10 +39,14 @@ def teacher_dashboard():
     with c2:
         st.subheader(f"""Welcome, {data['name']} """)
         
-        if st.button("Logout", type='secondary', key='backbtn', shortcut='control+backspace'):
-            st.session_state['is_logged_in'] = False
-            del st.session_state.teacher_data
-            st.rerun()
+        b1, b2 = st.columns(2, vertical_alignment='center')
+        with b1:
+            if st.button("Logout", type='secondary', key='backbtn', width='stretch'):
+                st.session_state['is_logged_in'] = False
+                del st.session_state.teacher_data
+                st.rerun()
+        with b2:
+            theme_toggle('teacher_dash')
     st.space()
 
     if "current_teacher_tab" not in st.session_state:
@@ -216,23 +220,31 @@ def manage_subjects():
 def attendance_records():
     teach_id = st.session_state.teacher_data['teacher_id']
     records  = get_attendance_for_teacher(teach_id)
+    dark     = is_dark_theme()
+
+    hdr_color = "#818cf8" if dark else "#5144d3"
+    sub_color = "#94a3b8"
 
     # ── Header ────────────────────────────────────────────────────
     st.html(
         '<div style="margin-bottom:6px;">'
-        '<h1 style="font-family:\'Climate Crisis\',sans-serif;font-size:2.4rem;letter-spacing:2px;'
-        'color:#5144d3;-webkit-text-fill-color:#5144d3;margin:0 0 4px 0;">Attendance Records</h1>'
-        '<p style="font-family:Outfit,sans-serif;color:#94a3b8;font-size:0.92rem;margin:0;">'
+        f'<h1 style="font-family:\'Climate Crisis\',sans-serif;font-size:2.4rem;letter-spacing:2px;'
+        f'color:{hdr_color};-webkit-text-fill-color:{hdr_color};margin:0 0 4px 0;">Attendance Records</h1>'
+        f'<p style="font-family:Outfit,sans-serif;color:{sub_color};font-size:0.92rem;margin:0;">'
         'Session-by-session summary of all your classes</p>'
         '</div>'
     )
 
     if not records:
+        empty_bg = "#1e293b" if dark else "white"
+        empty_border = "border:1px solid #334155;" if dark else ""
+        shadow = "box-shadow:0 4px 20px rgba(0,0,0,0.4);" if dark else "box-shadow:0 4px 20px rgba(102,126,234,0.1);"
+
         st.html(
-            '<div style="text-align:center;padding:60px 20px;background:white;border-radius:20px;'
-            'margin-top:20px;box-shadow:0 4px 20px rgba(102,126,234,0.1);">'
+            f'<div style="text-align:center;padding:60px 20px;background:{empty_bg};{empty_border}border-radius:20px;'
+            f'margin-top:20px;{shadow}">'
             '<div style="font-size:3rem;margin-bottom:12px;">📭</div>'
-            '<p style="font-family:Outfit,sans-serif;font-size:1.1rem;color:#94a3b8;font-weight:600;">'
+            f'<p style="font-family:Outfit,sans-serif;font-size:1.1rem;color:{sub_color};font-weight:600;">'
             'No attendance records yet.<br/>'
             '<span style="font-weight:400;font-size:0.92rem;">Take attendance to see records here.</span>'
             '</p></div>'
@@ -268,18 +280,30 @@ def attendance_records():
     total_present   = int(summary['Present_Count'].sum())
     avg_pct         = int(total_present / total_students * 100) if total_students else 0
 
+    tiles_config = (
+        [
+            (total_sessions,    "Sessions",        "#818cf8", "rgba(129, 140, 248, 0.15)", "rgba(129, 140, 248, 0.35)"),
+            (total_students,    "Total Records",   "#c084fc", "rgba(192, 132, 252, 0.15)", "rgba(192, 132, 252, 0.35)"),
+            (total_present,     "Present Entries", "#4ade80", "rgba(74, 222, 128, 0.15)",  "rgba(74, 222, 128, 0.35)"),
+            (f"{avg_pct}%",     "Avg Attendance",  "#fbbf24", "rgba(251, 191, 36, 0.15)",  "rgba(251, 191, 36, 0.35)"),
+        ]
+        if dark else
+        [
+            (total_sessions,    "Sessions",        "#667eea", "#ede9fe", "#c4b5fd"),
+            (total_students,    "Total Records",   "#a855f7", "#f5f3ff", "#ddd6fe"),
+            (total_present,     "Present Entries", "#22c55e", "#f0fdf4", "#86efac"),
+            (f"{avg_pct}%",     "Avg Attendance",  "#f59e0b", "#fffbeb", "#fde68a"),
+        ]
+    )
+
     tiles_html = ""
-    for val, lbl, col, bg, border in [
-        (total_sessions,    "Sessions",        "#667eea", "#ede9fe", "#c4b5fd"),
-        (total_students,    "Total Records",   "#a855f7", "#f5f3ff", "#ddd6fe"),
-        (total_present,     "Present Entries", "#22c55e", "#f0fdf4", "#86efac"),
-        (f"{avg_pct}%",     "Avg Attendance",  "#f59e0b", "#fffbeb", "#fde68a"),
-    ]:
+    for val, lbl, col, bg, border in tiles_config:
+        lbl_c = "#94a3b8" if dark else "#64748b"
         tiles_html += (
             '<div style="flex:1;min-width:120px;background:' + bg + ';'
             'border:1px solid ' + border + ';border-radius:16px;padding:16px 20px;text-align:center;">'
             '<div style="font-size:1.9rem;font-weight:800;color:' + col + ';font-family:Outfit,sans-serif;">' + str(val) + '</div>'
-            '<div style="font-size:0.78rem;color:#64748b;font-family:Outfit,sans-serif;margin-top:3px;">' + lbl + '</div>'
+            '<div style="font-size:0.78rem;color:' + lbl_c + ';font-family:Outfit,sans-serif;margin-top:3px;">' + lbl + '</div>'
             '</div>'
         )
 
@@ -292,22 +316,41 @@ def attendance_records():
         absent    = total - present
         pct       = int(present / total * 100) if total else 0
 
-        bar_color = "#22c55e" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444"
-        bar_bg    = "#dcfce7" if pct >= 70 else "#fef9c3" if pct >= 40 else "#fee2e2"
-        bar_border = "#86efac" if pct >= 70 else "#fde68a" if pct >= 40 else "#fca5a5"
+        bar_color  = "#4ade80" if (pct >= 70 and dark) else "#fbbf24" if (pct >= 40 and dark) else "#f87171" if dark else ("#22c55e" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444")
+        bar_bg     = "rgba(34, 197, 94, 0.15)" if (pct >= 70 and dark) else "rgba(245, 158, 11, 0.15)" if (pct >= 40 and dark) else "rgba(239, 68, 68, 0.15)" if dark else ("#dcfce7" if pct >= 70 else "#fef9c3" if pct >= 40 else "#fee2e2")
+        bar_border = "rgba(34, 197, 94, 0.35)" if (pct >= 70 and dark) else "rgba(245, 158, 11, 0.35)" if (pct >= 40 and dark) else "rgba(239, 68, 68, 0.35)" if dark else ("#86efac" if pct >= 70 else "#fde68a" if pct >= 40 else "#fca5a5")
+
+        card_bg = "#1e293b" if dark else "white"
+        card_border_style = "border:1px solid rgba(255,255,255,0.08);" if dark else ""
+        card_title_col = "#f8fafc" if dark else "#1e293b"
+        code_badge_bg = "linear-gradient(135deg,#312e81,#4338ca)" if dark else "linear-gradient(135deg,#e0e7ff,#c7d2fe)"
+        code_badge_col = "#a5b4fc" if dark else "#4338ca"
+        track_bg = "#334155" if dark else "#f1f5f9"
+        shadow_def = "box-shadow:0 4px 20px rgba(0,0,0,0.4);" if dark else "box-shadow:0 4px 20px rgba(102,126,234,0.1);"
+        shadow_hov = "box-shadow:0 8px 30px rgba(129,140,248,0.25);" if dark else "box-shadow:0 8px 30px rgba(102,126,234,0.2);"
+
+        pres_pill_bg = "rgba(34, 197, 94, 0.15)" if dark else "#f0fdf4"
+        pres_pill_border = "rgba(34, 197, 94, 0.3)" if dark else "#bbf7d0"
+        pres_pill_col = "#4ade80" if dark else "#16a34a"
+
+        abs_pill_bg = "rgba(239, 68, 68, 0.15)" if dark else "#fef2f2"
+        abs_pill_border = "rgba(239, 68, 68, 0.3)" if dark else "#fecaca"
+        abs_pill_col = "#f87171" if dark else "#dc2626"
+
+        tot_pill_bg = "#334155" if dark else "#f8fafc"
+        tot_pill_border = "#475569" if dark else "#e2e8f0"
+        tot_pill_col = "#cbd5e1" if dark else "#475569"
 
         card = (
-            '<div style="background:white;border-radius:20px;padding:20px 24px;margin-bottom:14px;'
-            'box-shadow:0 4px 20px rgba(102,126,234,0.1);border-left:5px solid ' + bar_color + ';transition:all 0.2s ease;"'
-            ' onmouseover="this.style.boxShadow=\'0 8px 30px rgba(102,126,234,0.2)\';this.style.transform=\'translateY(-2px)\'"'
-            ' onmouseout="this.style.boxShadow=\'0 4px 20px rgba(102,126,234,0.1)\';this.style.transform=\'translateY(0)\'">'
+            '<div style="background:' + card_bg + ';border-radius:20px;padding:20px 24px;margin-bottom:14px;'
+            + card_border_style + shadow_def + 'border-left:5px solid ' + bar_color + ';transition:all 0.2s ease;">'
 
             # Row 1
             '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'
             '<div>'
-            '<div style="font-family:Outfit,sans-serif;font-size:1.08rem;font-weight:700;color:#1e293b;margin-bottom:3px;">' + str(row['Subject']) + '</div>'
+            '<div style="font-family:Outfit,sans-serif;font-size:1.08rem;font-weight:700;color:' + card_title_col + ';margin-bottom:3px;">' + str(row['Subject']) + '</div>'
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-            '<span style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca;padding:2px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;">' + str(row['Subject Code']) + '</span>'
+            '<span style="background:' + code_badge_bg + ';color:' + code_badge_col + ';padding:2px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;">' + str(row['Subject Code']) + '</span>'
             '<span style="font-family:Outfit,sans-serif;font-size:0.82rem;color:#94a3b8;">🕐 ' + str(row['Time']) + '</span>'
             '</div>'
             '</div>'
@@ -316,15 +359,15 @@ def attendance_records():
             '</div>'
 
             # Row 2 – progress bar
-            '<div style="background:#f1f5f9;border-radius:99px;height:8px;overflow:hidden;margin-bottom:10px;">'
+            '<div style="background:' + track_bg + ';border-radius:99px;height:8px;overflow:hidden;margin-bottom:10px;">'
             '<div style="width:' + str(pct) + '%;height:100%;background:linear-gradient(90deg,' + bar_color + '88,' + bar_color + ');border-radius:99px;"></div>'
             '</div>'
 
             # Row 3 – pills
             '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
-            '<span style="background:#f0fdf4;color:#16a34a;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #bbf7d0;">✅ ' + str(present) + ' Present</span>'
-            '<span style="background:#fef2f2;color:#dc2626;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #fecaca;">❌ ' + str(absent) + ' Absent</span>'
-            '<span style="background:#f8fafc;color:#475569;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #e2e8f0;">👥 ' + str(total) + ' Total</span>'
+            '<span style="background:' + pres_pill_bg + ';color:' + pres_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + pres_pill_border + ';">✅ ' + str(present) + ' Present</span>'
+            '<span style="background:' + abs_pill_bg + ';color:' + abs_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + abs_pill_border + ';">❌ ' + str(absent) + ' Absent</span>'
+            '<span style="background:' + tot_pill_bg + ';color:' + tot_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + tot_pill_border + ';">👥 ' + str(total) + ' Total</span>'
             '</div>'
             '</div>'
         )
@@ -364,10 +407,14 @@ def teacher_scrn_login():
     with c1:
         header_dashboard()
     with c2:
-        if st.button("Go Back To Home", type='secondary', key='backbtn', shortcut='control+backspace'):
-            st.session_state['login_type'] = None
-            st.session_state['teacher_login_type'] = 'login'
-            st.rerun()
+        b1, b2 = st.columns(2, vertical_alignment='center')
+        with b1:
+            if st.button("Go to Home", type='secondary', key='backbtn', width='stretch'):
+                st.session_state['login_type'] = None
+                st.session_state['teacher_login_type'] = 'login'
+                st.rerun()
+        with b2:
+            theme_toggle('teacher_login')
 
     st.header('Login using password', text_alignment='center')
 
@@ -382,7 +429,7 @@ def teacher_scrn_login():
     btn1, btn2 = st.columns(2)
 
     with btn1:
-        if st.button("Login", icon=':material/passkey:', shortcut="control+enter", width='stretch'):
+        if st.button("Login", icon=':material/passkey:', width='stretch'):
             if login(username, password):
                 st.toast("Welcome Back", icon="👋")
                 time.sleep(2)
@@ -403,10 +450,14 @@ def teacher_scrn_register():
     with c1:
         header_dashboard()
     with c2:
-        if st.button("Go Back To Home", type='secondary', key='backbtn', shortcut='control+backspace'):
-            st.session_state['login_type'] = None
-            st.session_state['teacher_login_type'] = 'login'
-            st.rerun()
+        b1, b2 = st.columns(2, vertical_alignment='center')
+        with b1:
+            if st.button("Go to Home", type='secondary', key='backbtn', width='stretch'):
+                st.session_state['login_type'] = None
+                st.session_state['teacher_login_type'] = 'login'
+                st.rerun()
+        with b2:
+            theme_toggle('teacher_reg')
 
     st.header('Register your teacher profile')
 
@@ -423,7 +474,7 @@ def teacher_scrn_register():
     btn1, btn2 = st.columns(2)
 
     with btn1:
-        if st.button("Register Now", icon=':material/passkey:', shortcut="control+enter", width='stretch'):
+        if st.button("Register Now", icon=':material/passkey:', width='stretch'):
             succ, msg = register_teacher(username, name, password, pass_conf)
             if succ:
                 st.success(msg)
@@ -439,4 +490,3 @@ def teacher_scrn_register():
             st.rerun()
 
     footer_dashboard()
-

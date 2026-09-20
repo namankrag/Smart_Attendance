@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 
 @st.dialog("Add Classroom Photos")
 def add_photos_dialog():
@@ -9,6 +10,7 @@ def add_photos_dialog():
         subtitle="Capture or upload photos to scan for attendance",
         theme="orange"
     )
+    dark = is_dark_theme()
 
     if 'photo_tab' not in st.session_state:
         st.session_state.photo_tab = 'upload'
@@ -28,16 +30,20 @@ def add_photos_dialog():
     if st.session_state.photo_tab == 'camera':
         count = len(st.session_state.get('attendance_images', []))
         if count:
+            pill_bg = "linear-gradient(135deg, #7c2d12 0%, #451a03 100%)" if dark else "linear-gradient(135deg, #fff7ed, #ffedd5)"
+            border_col = "#f97316" if dark else "#fa8231"
+            text_col = "#ffedd5" if dark else "#c2410c"
+
             st.markdown(f"""
                 <div style="
-                    background: linear-gradient(135deg, #fff7ed, #ffedd5);
-                    border-left: 4px solid #fa8231;
+                    background: {pill_bg};
+                    border-left: 4px solid {border_col};
                     border-radius: 10px;
                     padding: 8px 14px;
                     margin-bottom: 10px;
                     font-family: Outfit, sans-serif;
                     font-size: 0.88rem;
-                    color: #c2410c;
+                    color: {text_col};
                 ">📸 {count} photo{'s' if count != 1 else ''} added so far</div>
             """, unsafe_allow_html=True)
 

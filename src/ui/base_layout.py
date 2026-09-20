@@ -1,12 +1,63 @@
 import streamlit as st
 
+def is_dark_theme() -> bool:
+    return st.session_state.get('theme', 'light') == 'dark'
+
 def style_bg_home():
-    st.markdown("""
+    if is_dark_theme():
+        st.markdown("""
+        <style>
+            .stApp {
+                background: linear-gradient(135deg, #090d16 0%, #111827 50%, #1e1b4b 100%) !important;
+            }
+    
+            /* Heading on dark purple space background */
+            .stApp h1 {
+                color: #f8fafc !important;
+                text-shadow: 0 4px 25px rgba(0, 0, 0, 0.6) !important;
+            }
+
+            /* Portal cards in Dark Mode */
+            .stApp div[data-testid="stColumn"]:has(img) {
+                background: rgba(30, 41, 59, 0.85) !important;
+                border: 1px solid rgba(129, 140, 248, 0.25) !important;
+                padding: 2.2rem 2rem !important;
+                border-radius: 2rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+                backdrop-filter: blur(14px) !important;
+                transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease !important;
+            }
+
+            .stApp div[data-testid="stColumn"]:has(img):hover {
+                transform: translateY(-6px) !important;
+                box-shadow: 0 28px 70px rgba(129, 140, 248, 0.25) !important;
+                border-color: rgba(129, 140, 248, 0.5) !important;
+            }
+
+            .stApp div[data-testid="stColumn"]:has(img) > div:first-child {
+                display: flex !important;
+                flex-direction: column !important;
+                height: 100% !important;
+                width: 100% !important;
+            }
+
+            .stApp div[data-testid="stColumn"]:has(img) img {
+                height: 145px !important;
+                width: auto !important;
+                object-fit: contain !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
         <style>
             .stApp {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
             }
-
+    
             /* White heading on the purple gradient home background */
             .stApp h1 {
                 color: white !important;
@@ -14,7 +65,7 @@ def style_bg_home():
             }
 
             /* Portal cards */
-            .stApp div[data-testid="stColumn"] {
+            .stApp div[data-testid="stColumn"]:has(img) {
                 background: rgba(255, 255, 255, 0.95) !important;
                 padding: 2.2rem 2rem !important;
                 border-radius: 2rem !important;
@@ -26,19 +77,19 @@ def style_bg_home():
                 transition: transform 0.3s ease, box-shadow 0.3s ease !important;
             }
 
-            .stApp div[data-testid="stColumn"]:hover {
+            .stApp div[data-testid="stColumn"]:has(img):hover {
                 transform: translateY(-6px) !important;
                 box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32) !important;
             }
 
-            .stApp div[data-testid="stColumn"] > div:first-child {
+            .stApp div[data-testid="stColumn"]:has(img) > div:first-child {
                 display: flex !important;
                 flex-direction: column !important;
                 height: 100% !important;
                 width: 100% !important;
             }
 
-            .stApp div[data-testid="stColumn"] img {
+            .stApp div[data-testid="stColumn"]:has(img) img {
                 height: 145px !important;
                 width: auto !important;
                 object-fit: contain !important;
@@ -47,24 +98,367 @@ def style_bg_home():
         """, unsafe_allow_html=True)
 
 def style_bg_dashboard():
-    st.markdown("""
+    if is_dark_theme():
+        st.markdown("""
+        <style>
+            .stApp {
+                background: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #0f172a 100%) !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
         <style>
             .stApp {
                 background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
             }
         </style>
-        """, unsafe_allow_html = True)
+        """, unsafe_allow_html=True)
 
 def style_base_layout():
-    st.markdown("""
+    if is_dark_theme():
+        st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:YEAR@1979&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+
+        #MainMenu, footer, header {
+            visibility: hidden;
+        }
+
+        .block-container {
+            padding-top: 1.5rem !important;    
+        }
+
+        body, .stApp {
+            color: #f8fafc !important;
+        }
+
+        h1 {
+            font-family: 'Climate Crisis', sans-serif !important;
+            font-size: 3.5rem !important;
+            line-height: 1.1 !important;
+            margin-bottom: 0rem !important;
+            color: #f8fafc !important;
+            letter-spacing: 2px !important;
+            -webkit-text-fill-color: #f8fafc !important;
+        }
+
+        h2 {
+            font-family: 'Climate Crisis', sans-serif !important;
+            font-size: 2rem !important;
+            line-height: 0.9 !important;
+            margin-bottom: 0rem !important;
+            color: #f1f5f9 !important;
+            -webkit-text-fill-color: #f1f5f9 !important;
+        }
+        
+        h3, h4, p, span, label {
+            font-family: 'Outfit', sans-serif;
+            color: #e2e8f0;
+        }
+
+        /* Enhanced Buttons in Dark Mode */
+        button {
+            border-radius: 1rem !important;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+            color: white !important;
+            padding: 12px 24px !important;
+            border: none !important;
+            font-weight: 600 !important;
+            font-family: 'Outfit', sans-serif !important;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(129, 140, 248, 0.6) !important;
+        }
+
+        button[kind = "secondary"] {
+            background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%) !important;
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4) !important;
+        }
+
+        button[kind = "secondary"]:hover {
+            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.6) !important;
+        }
+
+        button[kind = "tertiary"] {
+            background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid #475569 !important;
+        }
+
+        button[kind = "tertiary"]:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+            background: linear-gradient(135deg, #475569 0%, #334155 100%) !important;
+        }
+
+        /* Dedicated Glassmorphic Theme Toggle Button Styling (Dark Mode) */
+        button[key*="theme_toggle"] {
+            border-radius: 999px !important;
+            background: rgba(30, 41, 59, 0.75) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(129, 140, 248, 0.35) !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(129, 140, 248, 0.15) !important;
+            backdrop-filter: blur(12px) !important;
+            padding: 10px 20px !important;
+            font-size: 0.9rem !important;
+        }
+
+        button[key*="theme_toggle"]:hover {
+            background: rgba(51, 65, 85, 0.9) !important;
+            border-color: rgba(129, 140, 248, 0.6) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(129, 140, 248, 0.3) !important;
+        }
+
+        /* Enhanced Input Fields in Dark Mode */
+        input[type="text"], input[type="password"], textarea,
+        div[data-baseweb="input"], div[data-baseweb="input"] input,
+        div[data-testid="stTextInput"] input {
+            border-radius: 0.75rem !important;
+            border: 2px solid #334155 !important;
+            padding: 12px 16px !important;
+            font-family: 'Outfit', sans-serif !important;
+            transition: all 0.3s ease !important;
+            background: #1e293b !important;
+            color: #f8fafc !important;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+            border-color: #818cf8 !important;
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+            outline: none !important;
+            color: #f8fafc !important;
+        }
+
+        input[type="text"]::placeholder, input[type="password"]::placeholder, textarea::placeholder {
+            color: #64748b !important;
+            opacity: 1 !important;
+        }
+
+        /* Enhanced Code Block in Dark Mode */
+        div[data-testid="stCodeBlock"], pre, code, .stCodeBlock {
+            background-color: #1e293b !important;
+            color: #38bdf8 !important;
+            border: 1px solid #334155 !important;
+            border-radius: 0.75rem !important;
+        }
+
+        div[data-testid="stCodeBlock"] * {
+            color: #38bdf8 !important;
+            background-color: transparent !important;
+        }
+
+        div[data-testid="stCodeBlock"] button {
+            background: #334155 !important;
+            color: #f8fafc !important;
+            border-radius: 0.5rem !important;
+        }
+
+        /* ── Dialog / Modal in Dark Mode ──────────────────────────────── */
+        div[data-testid="stDialog"] > div[role="dialog"] {
+            border-radius: 1.8rem !important;
+            background-color: #0f172a !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            overflow: hidden !important;
+            box-shadow:
+                0 30px 80px rgba(0, 0, 0, 0.8),
+                0 0 0 1px rgba(129, 140, 248, 0.2) !important;
+            animation: dialogPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        }
+
+        @keyframes dialogPop {
+            from { opacity: 0; transform: scale(0.85) translateY(20px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0);    }
+        }
+
+        div[data-testid="stDialog"] section {
+            padding: 0 !important;
+            background-color: #0f172a !important;
+        }
+
+        div[data-testid="stDialog"] * {
+            color: #f8fafc;
+        }
+
+        /* Enhanced Containers */
+        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
+            border-radius: 1rem !important;
+        }
+
+        div[data-testid="column"] {
+            background: transparent !important;
+        }
+
+        /* Enhanced Dividers */
+        hr {
+            margin: 2rem 0 !important;
+            border: none !important;
+            height: 2px !important;
+            background: linear-gradient(90deg, transparent, #334155, transparent) !important;
+        }
+
+        /* Animated Camera Input in Dark Mode */
+        div[data-testid="stCameraInput"] {
+            border-radius: 1rem !important;
+            overflow: visible !important;
+            border: none !important;
+            position: relative !important;
+        }
+
+        div[data-testid="stCameraInput"]::before {
+            content: '' !important;
+            position: absolute !important;
+            inset: -3px !important;
+            border-radius: 1.2rem !important;
+            padding: 3px !important;
+            background: linear-gradient(
+                var(--angle, 0deg),
+                #818cf8, #c084fc, #f472b6, #fb7185, #818cf8
+            ) !important;
+            -webkit-mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0) !important;
+            -webkit-mask-composite: xor !important;
+            mask-composite: exclude !important;
+            animation: spin-border 3s linear infinite !important;
+            box-shadow: 0 0 20px rgba(129, 140, 248, 0.7) !important;
+            z-index: 10 !important;
+            pointer-events: none !important;
+        }
+
+        div[data-testid="stCameraInput"]::after {
+            content: '' !important;
+            position: absolute !important;
+            inset: -3px !important;
+            border-radius: 1.2rem !important;
+            background: linear-gradient(
+                var(--angle, 0deg),
+                #818cf8, #c084fc, #f472b6, #fb7185, #818cf8
+            ) !important;
+            filter: blur(12px) !important;
+            opacity: 0.5 !important;
+            animation: spin-border 3s linear infinite !important;
+            z-index: 0 !important;
+            pointer-events: none !important;
+        }
+
+        @property --angle {
+            syntax: '<angle>' !important;
+            initial-value: 0deg !important;
+            inherits: false !important;
+        }
+
+        @keyframes spin-border {
+            0%   { --angle: 0deg;   }
+            100% { --angle: 360deg; }
+        }
+
+        div[data-testid="stCameraInput"] video,
+        div[data-testid="stCameraInput"] img {
+            border-radius: 0.9rem !important;
+            position: relative !important;
+            z-index: 1 !important;
+        }
+
+        /* Enhanced Audio Input in Dark Mode */
+        div[data-testid="stAudioInput"] {
+            border-radius: 1rem !important;
+            border: 2px solid #334155 !important;
+            padding: 1rem !important;
+            background: #1e293b !important;
+            color: #f8fafc !important;
+        }
+
+        /* Enhanced File Uploader in Dark Mode */
+        div[data-testid="stFileUploader"] {
+            border-radius: 1rem !important;
+            border: 2px dashed #475569 !important;
+            background: rgba(99, 102, 241, 0.05) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        div[data-testid="stFileUploader"]:hover {
+            border-color: #818cf8 !important;
+            background: rgba(129, 140, 248, 0.1) !important;
+        }
+
+        /* Enhanced Dataframe in Dark Mode */
+        div[data-testid="stDataFrame"] {
+            border-radius: 1rem !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+            background: #1e293b !important;
+        }
+
+        /* Enhanced Toast Messages */
+        div[data-testid="stToast"] {
+            border-radius: 1rem !important;
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(10px) !important;
+            border: 1px solid #334155 !important;
+        }
+
+        /* Spinner styling */
+        div[data-testid="stSpinner"] > div {
+            border-color: #818cf8 transparent transparent transparent !important;
+        }
+
+        /* Select box styling in Dark Mode */
+        div[data-baseweb="select"] {
+            border-radius: 0.75rem !important;
+        }
+
+        div[data-baseweb="select"] > div {
+            border-radius: 0.75rem !important;
+            border: 2px solid #334155 !important;
+            background: #1e293b !important;
+            color: #f8fafc !important;
+        }
+
+        div[data-baseweb="select"] * {
+            color: #f8fafc !important;
+        }
+
+        div[data-baseweb="select"]:focus-within > div {
+            border-color: #818cf8 !important;
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+        }
+        
+        ul[role="listbox"] {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            border: 1px solid #334155 !important;
+        }
+
+        ul[role="listbox"] li {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+        }
+
+        ul[role="listbox"] li:hover {
+            background-color: #334155 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:YEAR@1979&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 
         /* Hide Top Bar of streamlit */
-        # #MainMenu, footer, header {
-        #     visibility: hidden;
-        # }
+        #MainMenu, footer, header {
+            visibility: hidden;
+        }
         
         .block-container {
             padding-top: 1.5rem !important;    
@@ -127,6 +521,27 @@ def style_base_layout():
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
         }
 
+        /* Dedicated Glassmorphic Theme Toggle Button Styling (Light Mode) */
+        button[key*="theme_toggle"] {
+            border-radius: 999px !important;
+            background: rgba(255, 255, 255, 0.28) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.5) !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12) !important;
+            backdrop-filter: blur(12px) !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+            padding: 10px 20px !important;
+            font-size: 0.9rem !important;
+        }
+
+        button[key*="theme_toggle"]:hover {
+            background: rgba(255, 255, 255, 0.45) !important;
+            border-color: rgba(255, 255, 255, 0.8) !important;
+            color: #ffffff !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18) !important;
+        }
+
         /* Enhanced Input Fields */
         input[type="text"], input[type="password"], textarea {
             border-radius: 0.75rem !important;
@@ -148,6 +563,25 @@ def style_base_layout():
         input[type="text"]::placeholder, input[type="password"]::placeholder, textarea::placeholder {
             color: #94a3b8 !important;
             opacity: 1 !important;
+        }
+
+        /* Enhanced Code Block in Light Mode */
+        div[data-testid="stCodeBlock"], pre, code, .stCodeBlock {
+            background-color: #f1f5f9 !important;
+            color: #4338ca !important;
+            border: 1px solid #e0e7ff !important;
+            border-radius: 0.75rem !important;
+        }
+
+        div[data-testid="stCodeBlock"] * {
+            color: #4338ca !important;
+            background-color: transparent !important;
+        }
+
+        div[data-testid="stCodeBlock"] button {
+            background: #e0e7ff !important;
+            color: #4338ca !important;
+            border-radius: 0.5rem !important;
         }
 
         /* ── Dialog / Modal ─────────────────────────────────────────── */
@@ -313,4 +747,4 @@ def style_base_layout():
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
         }
         </style>  
-        """ ,unsafe_allow_html=True)
+        """, unsafe_allow_html=True)

@@ -2,6 +2,7 @@ import streamlit as st
 from src.database.config import supabase
 from src.database.db import enroll_student_to_subject
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 import time
 
 @st.dialog("Enroll in Subject")
@@ -11,17 +12,22 @@ def enroll_dilog():
         subtitle="Enter the code shared by your teacher",
         theme="teal"
     )
+    dark = is_dark_theme()
 
-    st.markdown("""
+    box_bg = "rgba(6, 95, 70, 0.25)" if dark else "linear-gradient(135deg, #d1fae522, #a7f3d022)"
+    box_border = "#059669" if dark else "#43e97b"
+    box_text = "#6ee7b7" if dark else "#065f46"
+
+    st.markdown(f"""
         <div style="
-            background: linear-gradient(135deg, #d1fae522, #a7f3d022);
-            border-left: 4px solid #43e97b;
+            background: {box_bg};
+            border-left: 4px solid {box_border};
             border-radius: 12px;
             padding: 10px 14px;
             margin-bottom: 14px;
             font-family: Outfit, sans-serif;
             font-size: 0.9rem;
-            color: #065f46;
+            color: {box_text};
         ">
             🔑 Ask your teacher for the <b>Subject Code</b> to enroll instantly.
         </div>

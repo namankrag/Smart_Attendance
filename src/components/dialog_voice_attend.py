@@ -6,6 +6,7 @@ from src.pipelines.voice_pipeline import process_bulk_audio
 from src.database.config import supabase
 from src.components.dialog_attend_result import show_attendance
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 
 @st.dialog("Voice Attendance")
 def voice_attendance(select_sub_id):
@@ -14,17 +15,22 @@ def voice_attendance(select_sub_id):
         subtitle="AI listens and identifies each student's voice",
         theme="blue"
     )
+    dark = is_dark_theme()
 
-    st.markdown("""
+    box_bg = "rgba(30, 58, 138, 0.3)" if dark else "linear-gradient(135deg, #e0f2fe, #dbeafe)"
+    box_border = "#3b82f6" if dark else "#4facfe"
+    box_text = "#93c5fd" if dark else "#1e40af"
+
+    st.markdown(f"""
         <div style="
-            background: linear-gradient(135deg, #e0f2fe, #dbeafe);
-            border-left: 4px solid #4facfe;
+            background: {box_bg};
+            border-left: 4px solid {box_border};
             border-radius: 12px;
             padding: 12px 16px;
             margin-bottom: 16px;
             font-family: Outfit, sans-serif;
             font-size: 0.92rem;
-            color: #1e40af;
+            color: {box_text};
         ">
             🎙️ Ask students to say <b>"I am present"</b> or their name.
             Record the full classroom audio, then click Analyze.

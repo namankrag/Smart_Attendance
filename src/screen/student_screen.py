@@ -3,8 +3,8 @@ from PIL import Image
 import numpy as np
 import time
 
-from src.ui.base_layout import style_base_layout, style_bg_dashboard
-from src.components.header import header_dashboard
+from src.ui.base_layout import style_base_layout, style_bg_dashboard, is_dark_theme
+from src.components.header import header_dashboard, theme_toggle
 from src.components.footer import footer_dashboard
 from src.pipelines.face_pipeline import predict_attendance, get_face_embeddings, train_classifier
 from src.pipelines.voice_pipeline import get_voice_embedding
@@ -21,11 +21,15 @@ def student_dashboard():
         header_dashboard()
     with c2:
         st.subheader(f"""Welcome, {stud_data['name']}""")
-        if st.button("Logout", type='secondary', key='backbtn', shortcut="control+backspace"):
-            st.session_state.is_logged_in = False
-            st.session_state.camera_active = False
-            del st.session_state.student_data
-            st.rerun()
+        b1, b2 = st.columns(2, vertical_alignment='center')
+        with b1:
+            if st.button("Logout", type='secondary', key='backbtn', width='stretch'):
+                st.session_state.is_logged_in = False
+                st.session_state.camera_active = False
+                del st.session_state.student_data
+                st.rerun()
+        with b2:
+            theme_toggle("student_dash")
 
     st.space()
     c1, c2 = st.columns(2)
@@ -80,6 +84,7 @@ def student_screen():
 
     style_bg_dashboard()
     style_base_layout()
+    dark = is_dark_theme()
 
     if "student_data" in st.session_state:
         student_dashboard()
@@ -89,16 +94,22 @@ def student_screen():
     with c1:
         header_dashboard()
     with c2:
-        if st.button("Go Back To Home", type='secondary', key='backbtn', shortcut='control+backspace'):
-            st.session_state['login_type'] = None
-            st.rerun()
+        b1, b2 = st.columns(2, vertical_alignment='center')
+        with b1:
+            if st.button("Go to Home", type='secondary', key='backbtn', width='stretch'):
+                st.session_state['login_type'] = None
+                st.rerun()
+        with b2:
+            theme_toggle("student_login")
 
     st.header('Login using FaceID', text_alignment='center')
 
     st.space()
     st.space()
 
-    st.markdown("""
+    accent_col = "#818cf8" if dark else "#667eea"
+
+    st.markdown(f"""
         <div style="
             display: flex;
             align-items: center;
@@ -107,27 +118,27 @@ def student_screen():
         ">
             <span style="
                 width: 10px; height: 10px;
-                background: #667eea;
+                background: {accent_col};
                 border-radius: 50%;
                 display: inline-block;
                 animation: pulse-dot 1.5s ease-in-out infinite;
-                box-shadow: 0 0 8px rgba(102, 126, 234, 0.8);
+                box-shadow: 0 0 8px {accent_col};
             "></span>
             <span style="
                 font-family: 'Outfit', sans-serif;
                 font-size: 0.95rem;
                 font-weight: 600;
-                color: #667eea;
+                color: {accent_col};
                 letter-spacing: 1px;
                 text-transform: uppercase;
             ">Face Scanner Active</span>
         </div>
 
         <style>
-            @keyframes pulse-dot {
-                0%, 100% { transform: scale(1);   opacity: 1;   }
-                50%       { transform: scale(1.6); opacity: 0.4; }
-            }
+            @keyframes pulse-dot {{
+                0%, 100% {{ transform: scale(1);   opacity: 1;   }}
+                50%       {{ transform: scale(1.6); opacity: 0.4; }}
+            }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -138,13 +149,19 @@ def student_screen():
         st.session_state.camera_active = False
 
     if not st.session_state.camera_active:
+        box_bg = "#1e293b" if dark else "white"
+        box_border = "border:1px solid #334155;" if dark else ""
+        box_shadow = "box-shadow:0 4px 20px rgba(0,0,0,0.4);" if dark else "box-shadow:0 4px 20px rgba(102,126,234,0.1);"
+        txt1_col = "#e2e8f0" if dark else "#64748b"
+        txt2_col = "#94a3b8"
+
         st.html(
-            '<div style="text-align:center;padding:40px 20px;background:white;border-radius:20px;'
-            'box-shadow:0 4px 20px rgba(102,126,234,0.1);margin-bottom:16px;">'
+            f'<div style="text-align:center;padding:40px 20px;background:{box_bg};{box_border}border-radius:20px;'
+            f'{box_shadow}margin-bottom:16px;">'
             '<div style="font-size:3rem;margin-bottom:12px;">📷</div>'
-            '<p style="font-family:Outfit,sans-serif;color:#64748b;font-size:0.95rem;margin:0 0 4px;">'
+            f'<p style="font-family:Outfit,sans-serif;color:{txt1_col};font-size:0.95rem;margin:0 0 4px;">'
             'Camera is off to protect your privacy.</p>'
-            '<p style="font-family:Outfit,sans-serif;color:#94a3b8;font-size:0.85rem;margin:0;">'
+            f'<p style="font-family:Outfit,sans-serif;color:{txt2_col};font-size:0.85rem;margin:0;">'
             'Click below to activate the face scanner.</p>'
             '</div>'
         )
@@ -224,7 +241,4 @@ def student_screen():
                 else:
                     st.warning("Please Enter your name!")
 
-                
-
     footer_dashboard()
-

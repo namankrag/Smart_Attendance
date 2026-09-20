@@ -1,11 +1,27 @@
 import streamlit as st
 from src.database.db import create_attendance
 from src.components.dialog_utils import dialog_banner
+from src.ui.base_layout import is_dark_theme
 
 def show_attendance(df, logs):
     present = sum(1 for l in logs if l.get('is_present'))
     total   = len(logs)
     pct     = int(present / total * 100) if total else 0
+    dark    = is_dark_theme()
+
+    p_bg = "rgba(34, 197, 94, 0.15)" if dark else "linear-gradient(135deg, #43e97b22, #38f9d722)"
+    p_border = "rgba(34, 197, 94, 0.35)" if dark else "#43e97b55"
+    p_col = "#4ade80" if dark else "#22c55e"
+
+    a_bg = "rgba(239, 68, 68, 0.15)" if dark else "linear-gradient(135deg, #f5576c22, #f093fb22)"
+    a_border = "rgba(239, 68, 68, 0.35)" if dark else "#f5576c55"
+    a_col = "#f87171" if dark else "#ef4444"
+
+    pct_bg = "rgba(129, 140, 248, 0.15)" if dark else "linear-gradient(135deg, #667eea22, #764ba222)"
+    pct_border = "rgba(129, 140, 248, 0.35)" if dark else "#667eea55"
+    pct_col = "#818cf8" if dark else "#667eea"
+
+    lbl_col = "#94a3b8"
 
     # ── Stats strip ────────────────────────────────────────────────
     st.markdown(f"""
@@ -16,57 +32,57 @@ def show_attendance(df, logs):
         ">
             <div style="
                 flex: 1;
-                background: linear-gradient(135deg, #43e97b22, #38f9d722);
-                border: 1px solid #43e97b55;
+                background: {p_bg};
+                border: 1px solid {p_border};
                 border-radius: 14px;
                 padding: 14px;
                 text-align: center;
             ">
-                <div style="font-size:1.8rem; font-weight:800; color:#22c55e;">
+                <div style="font-size:1.8rem; font-weight:800; color:{p_col};">
                     {present}
                 </div>
-                <div style="font-size:0.8rem; color:#64748b; font-family:Outfit,sans-serif;">
+                <div style="font-size:0.8rem; color:{lbl_col}; font-family:Outfit,sans-serif;">
                     Present
                 </div>
             </div>
             <div style="
                 flex: 1;
-                background: linear-gradient(135deg, #f5576c22, #f093fb22);
-                border: 1px solid #f5576c55;
+                background: {a_bg};
+                border: 1px solid {a_border};
                 border-radius: 14px;
                 padding: 14px;
                 text-align: center;
             ">
-                <div style="font-size:1.8rem; font-weight:800; color:#ef4444;">
+                <div style="font-size:1.8rem; font-weight:800; color:{a_col};">
                     {total - present}
                 </div>
-                <div style="font-size:0.8rem; color:#64748b; font-family:Outfit,sans-serif;">
+                <div style="font-size:0.8rem; color:{lbl_col}; font-family:Outfit,sans-serif;">
                     Absent
                 </div>
             </div>
             <div style="
                 flex: 1;
-                background: linear-gradient(135deg, #667eea22, #764ba222);
-                border: 1px solid #667eea55;
+                background: {pct_bg};
+                border: 1px solid {pct_border};
                 border-radius: 14px;
                 padding: 14px;
                 text-align: center;
             ">
-                <div style="font-size:1.8rem; font-weight:800; color:#667eea;">
+                <div style="font-size:1.8rem; font-weight:800; color:{pct_col};">
                     {pct}%
                 </div>
-                <div style="font-size:0.8rem; color:#64748b; font-family:Outfit,sans-serif;">
+                <div style="font-size:0.8rem; color:{lbl_col}; font-family:Outfit,sans-serif;">
                     Attendance
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
         <p style="
             font-family: Outfit, sans-serif;
             font-size: 0.88rem;
-            color: #94a3b8;
+            color: {lbl_col};
             margin-bottom: 6px;
         ">Review before confirming — this cannot be undone.</p>
     """, unsafe_allow_html=True)
