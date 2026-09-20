@@ -160,29 +160,37 @@ def manage_subjects():
     teach_id = st.session_state.teacher_data['teacher_id']
     col1, col2 = st.columns(2)
     with col1:
-        st.header("Manage Subjects", width = 'stretch')
+        st.header("Manage Subjects", width='stretch')
     with col2:
-        if st.button("Create New Subject", width = 'stretch'):
+        if st.button("Create New Subject", width='stretch'):
             create_subject_dialog(teach_id)
 
     subjects = get_teacher_subjects(teach_id)
-    if subjects:
-        for sub in subjects:
-            stats = [
-                ("🫂", "Students", sub['total_students']),
-                ("🕰️", "Classes", sub['total_classes'])
-            ]
-        def share_btn():
-            if st.button(f"Share Code : {sub['name']}", key = f"share_{sub['subject_code']}", icon=":material/share:"):
-                share_subject(sub['name'], sub['subject_code'])
+    if not subjects:
+        st.info("No subjects yet. Create one to get started!")
+        return
+
+    for i, sub in enumerate(subjects):
+        stats = [
+            ("🫂", "Students", sub['total_students']),
+            ("🕰️", "Classes",  sub['total_classes'])
+        ]
+
+        def share_btn(bound_sub=sub):
+            if st.button(
+                f"Share Code : {bound_sub['name']}",
+                key=f"share_{bound_sub['subject_code']}_{i}",
+                icon=":material/share:"
+            ):
+                share_subject(bound_sub['name'], bound_sub['subject_code'])
             st.space()
-        
+
         subject_card(
-            name = sub['name'],
-            code = sub['subject_code'],
-            section = sub['section'],
-            stats = stats,
-            footer_callback = share_btn
+            name=sub['name'],
+            code=sub['subject_code'],
+            section=sub['section'],
+            stats=stats,
+            footer_callback=share_btn
         )
 
 
