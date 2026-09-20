@@ -45,23 +45,18 @@ def student_dashboard():
         subjects = get_student_subjects(stud_id)
         logs = get_student_attendance(stud_id)
 
-    stats_map = {}
-
+    attended_map = {}
     for log in logs:
         sid = log['subject_id']
-
-        if sid not in stats_map:
-            stats_map[sid] = {'Total' : 0, 'Attended' : 0}
-
-        stats_map[sid]['Total'] += 1
         if log.get('is_present'):
-            stats_map[sid]['Attended'] += 1
+            attended_map[sid] = attended_map.get(sid, 0) + 1
 
     cols = st.columns(2)
     for i, sub_node in enumerate(subjects):
         sub = sub_node['subjects']
         sid = sub['subject_id']
-        stats = stats_map.get(sid, {'Total' : 0, 'Attended' : 0})
+        total_classes = sub.get('total_classes', 0)
+        attended_classes = attended_map.get(sid, 0)
 
         def unenrolled(bound_sid=sid, bound_sub=sub):
             if st.button("Unenroll from the course", type='primary', width='stretch',
@@ -74,7 +69,7 @@ def student_dashboard():
             subject_card(name = sub['name'],
                          code = sub['subject_code'],
                          section = sub['section'],
-                         stats = [('📅', 'Total', stats['Total']), ('✅', 'Attended', stats['Attended'])],
+                         stats = [('📅', 'Total', total_classes), ('✅', 'Attended', attended_classes)],
                          footer_callback = unenrolled
                         )
     footer_dashboard()

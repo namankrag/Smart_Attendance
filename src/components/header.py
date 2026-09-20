@@ -14,7 +14,7 @@ def theme_toggle(key_suffix: str = "hdr"):
 
     current = st.session_state["theme"]
     is_dark = current == "dark"
-    label = "☀️ Light" if is_dark else "🌙 Dark Mode"
+    label = "☀️ Light" if is_dark else "🌙 Dark"
 
     if st.button(label, key=f"theme_toggle_{key_suffix}", type="tertiary", width="stretch"):
         st.session_state["theme"] = "light" if is_dark else "dark"

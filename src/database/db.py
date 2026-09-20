@@ -74,8 +74,18 @@ def unenroll_student_to_subject(student_id, subject_id):
 
 @db_retry()
 def get_student_subjects(student_id):
-    response = supabase.table('subject_students').select('*, subjects(*)').eq('student_id', student_id).execute()
-    return response.data
+    response = supabase.table('subject_students').select('*, subjects(*, attendance_logs(timestamp))').eq('student_id', student_id).execute()
+    subjects = response.data
+
+    for item in subjects:
+        sub = item.get('subjects', {})
+        if sub:
+            attend = sub.get('attendance_logs', [])
+            unique_session = len(set(log['timestamp'] for log in attend))
+            sub['total_classes'] = unique_session
+            sub.pop('attendance_logs', None)
+
+    return subjects
 
 @db_retry()
 def get_student_attendance(student_id):
