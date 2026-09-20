@@ -16,6 +16,7 @@ from src.pipelines.face_pipeline import predict_attendance
 from src.database.config import supabase
 from src.components.dialog_attend_result import attend_result
 from src.components.dialog_voice_attend import voice_attendance
+from src.components.dialog_delete_subject import confirm_delete_subject
 
 def teacher_screen():
 
@@ -176,21 +177,39 @@ def manage_subjects():
             ("🕰️", "Classes",  sub['total_classes'])
         ]
 
-        def share_btn(bound_sub=sub):
-            if st.button(
-                f"Share Code : {bound_sub['name']}",
-                key=f"share_{bound_sub['subject_code']}_{i}",
-                icon=":material/share:"
-            ):
-                share_subject(bound_sub['name'], bound_sub['subject_code'])
-            st.space()
+        def make_footer(bound_sub=sub, idx=i):
+            def footer():
+                col_share, col_delete = st.columns(2)
+                with col_share:
+                    if st.button(
+                        "Share Code",
+                        key=f"share_{bound_sub['subject_code']}_{idx}",
+                        icon=":material/share:",
+                        width='stretch'
+                    ):
+                        share_subject(bound_sub['name'], bound_sub['subject_code'])
+                with col_delete:
+                    if st.button(
+                        "Delete Subject",
+                        key=f"delete_{bound_sub['subject_id']}_{idx}",
+                        icon=":material/delete_forever:",
+                        type='secondary',
+                        width='stretch'
+                    ):
+                        confirm_delete_subject(
+                            bound_sub['subject_id'],
+                            bound_sub['name'],
+                            bound_sub['subject_code']
+                        )
+                st.space()
+            return footer
 
         subject_card(
             name=sub['name'],
             code=sub['subject_code'],
             section=sub['section'],
             stats=stats,
-            footer_callback=share_btn
+            footer_callback=make_footer()
         )
 
 
