@@ -60,19 +60,20 @@ def get_trained_model():
         embedding = stud.get('face_embedding')
         if embedding:
             X.append(np.array(embedding))
-            y.append(stud.get('student_id'))
+            y.append(int(stud.get('student_id')))
 
     if len(X) == 0:
-        return 0
+        return None
 
-    clf = SVC(kernel = 'linear', probability = True, class_weight = 'balanced')
+    clf = None
+    if len(set(y)) >= 2:
+        try:
+            clf = SVC(kernel='linear', probability=True, class_weight='balanced')
+            clf.fit(X, y)
+        except Exception:
+            clf = None
 
-    try:
-        clf.fit(X, y)
-    except ValueError:
-        pass
-
-    return {'clf' : clf, 'X' : X, 'y' : y}
+    return {'clf': clf, 'X': X, 'y': y}
 
 def train_classifier():
     st.cache_resource.clear()
@@ -88,32 +89,43 @@ def predict_attendance(class_image_np):
     if not model_data:
         return detected_student, [], len(encodings)
 
-    clf = model_data['clf']
     X_train = model_data['X']
     y_train = model_data['y']
+    clf = model_data.get('clf')
 
     all_stud = sorted(list(set(y_train)))
 
-    CONFIDENCE_THRESHOLD = 0.70   # SVM probability must be at least 70%
-    DISTANCE_THRESHOLD   = 0.55   # Euclidean distance must be within 0.55
+    # Standard dlib ResNet-v1 Euclidean distance threshold for matching faces
+    DISTANCE_THRESHOLD = 0.60
 
     for encode in encodings:
-        if len(all_stud) >= 2:
-            proba = clf.predict_proba([encode])[0]
-            best_idx = int(np.argmax(proba))
-            best_conf = proba[best_idx]
-            pred_id = int(clf.classes_[best_idx])
+        best_student_id = None
+        min_distance = float('inf')
 
-            if best_conf < CONFIDENCE_THRESHOLD:
-                continue  # not confident enough — reject
-        else:
-            pred_id = int(all_stud[0])
+        # 1. Metric Nearest-Neighbor matching across all stored embeddings
+        for i, stored_emb in enumerate(X_train):
+            dist = np.linalg.norm(stored_emb - encode)
+            if dist < min_distance:
+                min_distance = dist
+                best_student_id = y_train[i]
 
-        # Secondary check: Euclidean distance to the stored embedding
-        stud_emb = X_train[y_train.index(pred_id)]
-        distance = np.linalg.norm(stud_emb - encode)
-
-        if distance <= DISTANCE_THRESHOLD:
-            detected_student[pred_id] = True
+        # 2. If Euclidean distance is within standard threshold (0.60), consider it a valid match
+        if min_distance <= DISTANCE_THRESHOLD and best_student_id is not None:
+            # Optional double-check with SVM if multi-class classifier is trained
+            if clf is not None and len(all_stud) >= 2:
+                try:
+                    proba = clf.predict_proba([encode])[0]
+                    best_idx = int(np.argmax(proba))
+                    pred_id = int(clf.classes_[best_idx])
+                    # If SVM strongly agrees or metric distance is very small (< 0.50), accept match
+                    if pred_id == best_student_id or min_distance <= 0.50:
+                        detected_student[best_student_id] = True
+                    elif proba[best_idx] >= 0.60:
+                        detected_student[pred_id] = True
+                except Exception:
+                    detected_student[best_student_id] = True
+            else:
+                detected_student[best_student_id] = True
 
     return detected_student, all_stud, len(encodings)
+
