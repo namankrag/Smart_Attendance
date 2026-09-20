@@ -1,21 +1,34 @@
 import dlib
 import numpy as np
-import face_recognition_models
+import importlib.resources as pkg_res
 from sklearn.svm import SVC
 import streamlit as st
 
 from src.database.db import get_all_students
+
+def _model_path(filename: str) -> str:
+    """Resolve a face_recognition_models file path without pkg_resources."""
+    try:
+        # Python 3.9+ path — works on 3.14
+        ref = pkg_res.files("face_recognition_models") / "models" / filename
+        with pkg_res.as_file(ref) as p:
+            return str(p)
+    except Exception:
+        # Fallback: locate the package directory manually
+        import face_recognition_models as _frm
+        import os
+        return os.path.join(os.path.dirname(_frm.__file__), "models", filename)
 
 @st.cache_resource
 def load_dilib_models():
     detector = dlib.get_frontal_face_detector()
 
     sp = dlib.shape_predictor(
-        face_recognition_models.pose_predictor_model_location()
+        _model_path("shape_predictor_68_face_landmarks.dat")
     )
 
     face_rec = dlib.face_recognition_model_v1(
-        face_recognition_models.face_recognition_model_location()
+        _model_path("dlib_face_recognition_resnet_model_v1.dat")
     )
 
     return detector, sp, face_rec
