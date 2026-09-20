@@ -1,3 +1,16 @@
+import sys
+import types
+
+# Several older packages (webrtcvad, face_recognition_models) use pkg_resources
+# which was removed in Python 3.14. Inject a minimal shim before any local
+# imports trigger those packages.
+if "pkg_resources" not in sys.modules:
+    _pkg_shim = types.ModuleType("pkg_resources")
+    _pkg_shim.resource_filename = lambda package_or_requirement, resource_name: resource_name
+    _pkg_shim.require = lambda *a, **kw: []
+    _pkg_shim.get_distribution = lambda name: type("D", (), {"version": "0.0.0"})()
+    sys.modules["pkg_resources"] = _pkg_shim
+
 import streamlit as st
 from pathlib import Path
 import base64
