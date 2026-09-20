@@ -11,7 +11,7 @@ def share_subject(sub_name, sub_code):
         theme="purple"
     )
 
-    app_dom = "http://localhost:8501"
+    app_dom = "smartclass-main.streamlit.app"
     join_url = f"{app_dom}/?join-code={sub_code}"
 
     # ── Coloured QR code ────────────────────────────────────────────
