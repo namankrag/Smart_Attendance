@@ -7,6 +7,12 @@ def style_bg_home():
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
             }
 
+            /* White heading on the purple gradient home background */
+            .stApp h1 {
+                color: white !important;
+                text-shadow: 0 4px 25px rgba(0, 0, 0, 0.25) !important;
+            }
+
             /* Portal cards */
             .stApp div[data-testid="stColumn"] {
                 background: rgba(255, 255, 255, 0.95) !important;
@@ -69,8 +75,7 @@ def style_base_layout():
             font-size: 3.5rem !important;
             line-height: 1.1 !important;
             margin-bottom: 0rem !important;
-            color: white !important;
-            text-shadow: 0 4px 25px rgba(0, 0, 0, 0.25) !important;
+            color: #1e293b !important;
             letter-spacing: 2px !important;
         }
 
@@ -79,6 +84,7 @@ def style_base_layout():
             font-size: 2rem !important;
             line-height: 0.9 !important;
             margin-bottom: 0rem !important;
+            color: #1e293b !important;
         }
         
         h3, h4, p {
@@ -129,12 +135,19 @@ def style_base_layout():
             font-family: 'Outfit', sans-serif !important;
             transition: all 0.3s ease !important;
             background: white !important;
+            color: #1e293b !important;
         }
 
         input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
             border-color: #667eea !important;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
             outline: none !important;
+            color: #1e293b !important;
+        }
+
+        input[type="text"]::placeholder, input[type="password"]::placeholder, textarea::placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
         }
 
         /* ── Dialog / Modal ─────────────────────────────────────────── */
@@ -288,6 +301,11 @@ def style_base_layout():
             border-radius: 0.75rem !important;
             border: 2px solid #e0e7ff !important;
             background: white !important;
+            color: #1e293b !important;
+        }
+
+        div[data-baseweb="select"] * {
+            color: #1e293b !important;
         }
 
         div[data-baseweb="select"]:focus-within > div {
