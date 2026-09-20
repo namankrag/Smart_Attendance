@@ -186,26 +186,25 @@ def student_screen():
         with st.spinner("AI is scanning..."):
             detected, all_ids, num_faces = predict_attendance(img)
 
-            if num_faces == 0:
-                st.warning("Face not Found!")
+            if detected:
+                stud_id = list(detected.keys())[0]
+                all_stud = get_all_students()
+                stud = next((s for s in all_stud if s['student_id'] == stud_id), None)
+                if stud:
+                    st.session_state.camera_active = False
+                    st.session_state.is_logged_in = True
+                    st.session_state.user_role = 'student'
+                    st.session_state.student_data = stud
+                    st.toast(f"Welcome Back {stud['name']}!")
+                    time.sleep(1)
+                    st.rerun()
+            elif num_faces == 0:
+                st.warning("Face not Found! Please position your face clearly in the camera.")
             elif num_faces > 1:
-                st.warning("Multiple Faces Found")
+                st.warning("Multiple Faces Found! Please ensure only one person is in the frame.")
             else:
-                if detected:
-                    stud_id = list(detected.keys())[0]
-                    all_stud = get_all_students()
-                    stud = next((s for s in all_stud if s['student_id'] == stud_id), None)
-                    if stud:
-                        st.session_state.camera_active = False
-                        st.session_state.is_logged_in = True
-                        st.session_state.user_role = 'student'
-                        st.session_state.student_data = stud
-                        st.toast(f"Welcome Back {stud['name']}")
-                        time.sleep(1)
-                        st.rerun()
-                else:
-                    st.info("Face not recognized! You might be a new student!")
-                    show_reg = True
+                st.info("Face not recognized! You might be a new student.")
+                show_reg = True
 
     if show_reg:
         with st.container(border=True):

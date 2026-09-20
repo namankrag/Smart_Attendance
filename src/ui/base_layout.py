@@ -360,20 +360,60 @@ def style_base_layout():
             100% { --angle: 360deg; }
         }
 
+        /* Force camera feed and preview to be straight (un-mirrored) */
         div[data-testid="stCameraInput"] video,
+        div[data-testid="stCameraInput"] canvas,
         div[data-testid="stCameraInput"] img {
             border-radius: 0.9rem !important;
             position: relative !important;
             z-index: 1 !important;
+            transform: scaleX(1) !important;
+            -webkit-transform: scaleX(1) !important;
         }
 
         /* Enhanced Audio Input in Dark Mode */
         div[data-testid="stAudioInput"] {
-            border-radius: 1rem !important;
+            border-radius: 1.2rem !important;
             border: 2px solid #334155 !important;
-            padding: 1rem !important;
+            padding: 1.25rem !important;
             background: #1e293b !important;
             color: #f8fafc !important;
+            overflow: visible !important;
+        }
+
+        /* Reset and properly size internal buttons inside stAudioInput */
+        div[data-testid="stAudioInput"] button {
+            border-radius: 0.75rem !important;
+            padding: 8px 14px !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+            font-size: 0.9rem !important;
+            width: auto !important;
+        }
+
+        /* Top-right action buttons (Download / Clear) inside stAudioInput */
+        div[data-testid="stAudioInput"] [data-testid*="Action"] button,
+        div[data-testid="stAudioInput"] div[class*="StyledActions"] button,
+        div[data-testid="stAudioInput"] button[aria-label*="clear" i],
+        div[data-testid="stAudioInput"] button[aria-label*="download" i],
+        div[data-testid="stAudioInput"] button[title*="clear" i],
+        div[data-testid="stAudioInput"] button[title*="download" i],
+        div[data-testid="stAudioInput"] button[title*="Delete" i] {
+            padding: 5px 10px !important;
+            border-radius: 8px !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            color: #f8fafc !important;
+            box-shadow: none !important;
+            transform: none !important;
+            margin: 0 3px !important;
+        }
+
+        div[data-testid="stAudioInput"] button[aria-label*="clear" i]:hover,
+        div[data-testid="stAudioInput"] button[aria-label*="download" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="clear" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="download" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="Delete" i]:hover {
+            background: rgba(255, 255, 255, 0.22) !important;
         }
 
         /* Enhanced File Uploader in Dark Mode */
@@ -678,20 +718,59 @@ def style_base_layout():
             100% { --angle: 360deg; }
         }
 
-        /* Corner scanner dots */
+        /* Force camera feed and preview to be straight (un-mirrored) */
         div[data-testid="stCameraInput"] video,
+        div[data-testid="stCameraInput"] canvas,
         div[data-testid="stCameraInput"] img {
             border-radius: 0.9rem !important;
             position: relative !important;
             z-index: 1 !important;
+            transform: scaleX(1) !important;
+            -webkit-transform: scaleX(1) !important;
         }
 
         /* Enhanced Audio Input */
         div[data-testid="stAudioInput"] {
-            border-radius: 1rem !important;
+            border-radius: 1.2rem !important;
             border: 2px solid #e0e7ff !important;
-            padding: 1rem !important;
+            padding: 1.25rem !important;
             background: white !important;
+            overflow: visible !important;
+        }
+
+        /* Reset and properly size internal buttons inside stAudioInput */
+        div[data-testid="stAudioInput"] button {
+            border-radius: 0.75rem !important;
+            padding: 8px 14px !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+            font-size: 0.9rem !important;
+            width: auto !important;
+        }
+
+        /* Top-right action buttons (Download / Clear) inside stAudioInput */
+        div[data-testid="stAudioInput"] [data-testid*="Action"] button,
+        div[data-testid="stAudioInput"] div[class*="StyledActions"] button,
+        div[data-testid="stAudioInput"] button[aria-label*="clear" i],
+        div[data-testid="stAudioInput"] button[aria-label*="download" i],
+        div[data-testid="stAudioInput"] button[title*="clear" i],
+        div[data-testid="stAudioInput"] button[title*="download" i],
+        div[data-testid="stAudioInput"] button[title*="Delete" i] {
+            padding: 5px 10px !important;
+            border-radius: 8px !important;
+            background: #f1f5f9 !important;
+            color: #475569 !important;
+            box-shadow: none !important;
+            transform: none !important;
+            margin: 0 3px !important;
+        }
+
+        div[data-testid="stAudioInput"] button[aria-label*="clear" i]:hover,
+        div[data-testid="stAudioInput"] button[aria-label*="download" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="clear" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="download" i]:hover,
+        div[data-testid="stAudioInput"] button[title*="Delete" i]:hover {
+            background: #e2e8f0 !important;
         }
 
         /* Enhanced File Uploader */

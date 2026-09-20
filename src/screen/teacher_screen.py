@@ -12,7 +12,7 @@ from src.components.dialog_create_subject import create_subject_dialog
 from src.components.subject_card import subject_card
 from src.components.dialog_share_subject import share_subject
 from src.components.dialog_add_photo import add_photos_dialog
-from src.pipelines.face_pipeline import predict_attendance
+from src.pipelines.face_pipeline import predict_attendance_batch
 from src.database.config import supabase
 from src.components.dialog_attend_result import attend_result
 from src.components.dialog_voice_attend import voice_attendance
@@ -119,16 +119,8 @@ def take_attendance():
             st.rerun()
     with c2:
         if st.button("Run face analysis", type = 'secondary', disabled= not has_photos, icon = ":material/analytics:"):
-            with st.spinner("Deep Scanning classroom photos..."):
-                all_detected_ids = {}
-                for idx, img in enumerate(st.session_state.attendance_images):
-                    img_np = np.array(img.convert('RGB'))
-                    detected, _, _ = predict_attendance(img_np)
-
-                    if detected:
-                        for sid in detected.keys():
-                            stud_id = int(sid)
-                            all_detected_ids.setdefault(stud_id, []).append(f"Photos {idx+1}")
+            with st.spinner("Deep Scanning classroom photos in parallel..."):
+                all_detected_ids = predict_attendance_batch(st.session_state.attendance_images)
 
                 enrolled_res = supabase.table('subject_students').select("*, students(*)").eq('subject_id', selected_sub_id).execute()
                 enrolled_stud = enrolled_res.data

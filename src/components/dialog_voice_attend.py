@@ -8,7 +8,7 @@ from src.components.dialog_attend_result import show_attendance
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-@st.dialog("Voice Attendance")
+@st.dialog("Voice Attendance", width="medium")
 def voice_attendance(select_sub_id):
     dialog_banner(
         "Voice Attendance",
@@ -38,6 +38,7 @@ def voice_attendance(select_sub_id):
     """, unsafe_allow_html=True)
 
     audio_data = st.audio_input("🎤 Record Classroom Audio")
+    st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
     if st.button("🔍  Analyze Audio", width='stretch', type='primary'):
         with st.spinner("🧠 AI is identifying voices…"):
