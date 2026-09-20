@@ -23,6 +23,7 @@ def student_dashboard():
         st.subheader(f"""Welcome, {stud_data['name']}""")
         if st.button("Logout", type='secondary', key='backbtn', shortcut="control+backspace"):
             st.session_state.is_logged_in = False
+            st.session_state.camera_active = False
             del st.session_state.student_data
             st.rerun()
 
@@ -58,11 +59,13 @@ def student_dashboard():
         sid = sub['subject_id']
         stats = stats_map.get(sid, {'Total' : 0, 'Attended' : 0})
 
-        def unenrolled():
-            if st.button("Unenroll from the course", type='primary', width='stretch', icon=":material/delete_forever:"):
-                unenroll_student_to_subject(stud_id, sid)
-                st.toast(f"Unenrolled from {sub['name']} successfully!")
+        def unenrolled(bound_sid=sid, bound_sub=sub):
+            if st.button("Unenroll from the course", type='primary', width='stretch',
+                         icon=":material/delete_forever:", key=f"unenroll_{bound_sid}"):
+                unenroll_student_to_subject(stud_id, bound_sid)
+                st.toast(f"Unenrolled from {bound_sub['name']} successfully!")
                 st.rerun()
+
         with cols[i % 2]:
             subject_card(name = sub['name'],
                          code = sub['subject_code'],
@@ -95,8 +98,72 @@ def student_screen():
     st.space()
     st.space()
 
+    st.markdown("""
+        <div style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        ">
+            <span style="
+                width: 10px; height: 10px;
+                background: #667eea;
+                border-radius: 50%;
+                display: inline-block;
+                animation: pulse-dot 1.5s ease-in-out infinite;
+                box-shadow: 0 0 8px rgba(102, 126, 234, 0.8);
+            "></span>
+            <span style="
+                font-family: 'Outfit', sans-serif;
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: #667eea;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            ">Face Scanner Active</span>
+        </div>
+
+        <style>
+            @keyframes pulse-dot {
+                0%, 100% { transform: scale(1);   opacity: 1;   }
+                50%       { transform: scale(1.6); opacity: 0.4; }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     show_reg = False
-    photo_src = st.camera_input("Position your face in the center")
+
+    # Gate the camera — only activate when user explicitly clicks
+    if 'camera_active' not in st.session_state:
+        st.session_state.camera_active = False
+
+    if not st.session_state.camera_active:
+        st.html(
+            '<div style="text-align:center;padding:40px 20px;background:white;border-radius:20px;'
+            'box-shadow:0 4px 20px rgba(102,126,234,0.1);margin-bottom:16px;">'
+            '<div style="font-size:3rem;margin-bottom:12px;">📷</div>'
+            '<p style="font-family:Outfit,sans-serif;color:#64748b;font-size:0.95rem;margin:0 0 4px;">'
+            'Camera is off to protect your privacy.</p>'
+            '<p style="font-family:Outfit,sans-serif;color:#94a3b8;font-size:0.85rem;margin:0;">'
+            'Click below to activate the face scanner.</p>'
+            '</div>'
+        )
+        if st.button("🔓  Activate Face Scanner", type='primary', width='stretch'):
+            st.session_state.camera_active = True
+            st.rerun()
+        footer_dashboard()
+        return
+
+    # Camera is active — show it and a way to turn it off
+    col_cam, col_off = st.columns([5, 1], vertical_alignment='bottom')
+    with col_off:
+        if st.button("Turn Off", type='secondary'):
+            st.session_state.camera_active = False
+            st.rerun()
+
+    with col_cam:
+        photo_src = st.camera_input("Position your face in the center")
+
     if photo_src:
         img = np.array(Image.open(photo_src).convert("RGB"))
         with st.spinner("AI is scanning..."):
@@ -112,6 +179,7 @@ def student_screen():
                     all_stud = get_all_students()
                     stud = next((s for s in all_stud if s['student_id'] == stud_id), None)
                     if stud:
+                        st.session_state.camera_active = False
                         st.session_state.is_logged_in = True
                         st.session_state.user_role = 'student'
                         st.session_state.student_data = stud

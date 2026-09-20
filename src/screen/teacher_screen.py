@@ -187,37 +187,121 @@ def manage_subjects():
 
 
 def attendance_records():
-    st.header("Attendance Records")
     teach_id = st.session_state.teacher_data['teacher_id']
-    records = get_attendance_for_teacher(teach_id)
+    records  = get_attendance_for_teacher(teach_id)
+
+    # ── Header ────────────────────────────────────────────────────
+    st.html(
+        '<div style="margin-bottom:6px;">'
+        '<h1 style="font-family:\'Climate Crisis\',sans-serif;font-size:2.4rem;letter-spacing:2px;'
+        'color:#5144d3;-webkit-text-fill-color:#5144d3;margin:0 0 4px 0;">Attendance Records</h1>'
+        '<p style="font-family:Outfit,sans-serif;color:#94a3b8;font-size:0.92rem;margin:0;">'
+        'Session-by-session summary of all your classes</p>'
+        '</div>'
+    )
+
     if not records:
+        st.html(
+            '<div style="text-align:center;padding:60px 20px;background:white;border-radius:20px;'
+            'margin-top:20px;box-shadow:0 4px 20px rgba(102,126,234,0.1);">'
+            '<div style="font-size:3rem;margin-bottom:12px;">📭</div>'
+            '<p style="font-family:Outfit,sans-serif;font-size:1.1rem;color:#94a3b8;font-weight:600;">'
+            'No attendance records yet.<br/>'
+            '<span style="font-weight:400;font-size:0.92rem;">Take attendance to see records here.</span>'
+            '</p></div>'
+        )
         return
+
+    # ── Aggregate ─────────────────────────────────────────────────
     data = []
     for r in records:
         ts = r.get('timestamp')
         data.append({
-            "ts_group" : ts.split(".")[0] if ts else None,
-            "Time" : datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N/A",
-            "Subject" : r['subjects']['name'],
+            "ts_group"     : ts.split(".")[0] if ts else None,
+            "Time"         : datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N/A",
+            "Subject"      : r['subjects']['name'],
             "Subject Code" : r['subjects']['subject_code'],
-            "is_present" : bool(r.get('is_present', False))
+            "is_present"   : bool(r.get('is_present', False))
         })
 
     df = pd.DataFrame(data)
     summary = (
         df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code'])
         .agg(
-            Present_Count = ('is_present', 'sum'),
-            Total_Count = ('is_present', 'count')
-        ).reset_index()
+            Present_Count=('is_present', 'sum'),
+            Total_Count  =('is_present', 'count')
+        )
+        .reset_index()
+        .sort_values('ts_group', ascending=False)
     )
-    summary['Attendance Stats'] = (
-        "✅ " + summary['Present_Count'].astype(str) + " /" + summary['Total_Count'].astype(str) + ' Students'
-    )
-    display_df = (summary.sort_values(by='ts_group', ascending=False)
-                  [['Time', 'Subject', 'Subject Code', 'Attendance Stats']]
-                  )
-    st.dataframe(display_df, width='stretch', hide_index=True)
+
+    # ── Top summary strip ─────────────────────────────────────────
+    total_sessions  = len(summary)
+    total_students  = int(summary['Total_Count'].sum())
+    total_present   = int(summary['Present_Count'].sum())
+    avg_pct         = int(total_present / total_students * 100) if total_students else 0
+
+    tiles_html = ""
+    for val, lbl, col, bg, border in [
+        (total_sessions,    "Sessions",        "#667eea", "#ede9fe", "#c4b5fd"),
+        (total_students,    "Total Records",   "#a855f7", "#f5f3ff", "#ddd6fe"),
+        (total_present,     "Present Entries", "#22c55e", "#f0fdf4", "#86efac"),
+        (f"{avg_pct}%",     "Avg Attendance",  "#f59e0b", "#fffbeb", "#fde68a"),
+    ]:
+        tiles_html += (
+            '<div style="flex:1;min-width:120px;background:' + bg + ';'
+            'border:1px solid ' + border + ';border-radius:16px;padding:16px 20px;text-align:center;">'
+            '<div style="font-size:1.9rem;font-weight:800;color:' + col + ';font-family:Outfit,sans-serif;">' + str(val) + '</div>'
+            '<div style="font-size:0.78rem;color:#64748b;font-family:Outfit,sans-serif;margin-top:3px;">' + lbl + '</div>'
+            '</div>'
+        )
+
+    st.html('<div style="display:flex;gap:14px;margin:18px 0 22px;flex-wrap:wrap;">' + tiles_html + '</div>')
+
+    # ── Cards ─────────────────────────────────────────────────────
+    for _, row in summary.iterrows():
+        present   = int(row['Present_Count'])
+        total     = int(row['Total_Count'])
+        absent    = total - present
+        pct       = int(present / total * 100) if total else 0
+
+        bar_color = "#22c55e" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444"
+        bar_bg    = "#dcfce7" if pct >= 70 else "#fef9c3" if pct >= 40 else "#fee2e2"
+        bar_border = "#86efac" if pct >= 70 else "#fde68a" if pct >= 40 else "#fca5a5"
+
+        card = (
+            '<div style="background:white;border-radius:20px;padding:20px 24px;margin-bottom:14px;'
+            'box-shadow:0 4px 20px rgba(102,126,234,0.1);border-left:5px solid ' + bar_color + ';transition:all 0.2s ease;"'
+            ' onmouseover="this.style.boxShadow=\'0 8px 30px rgba(102,126,234,0.2)\';this.style.transform=\'translateY(-2px)\'"'
+            ' onmouseout="this.style.boxShadow=\'0 4px 20px rgba(102,126,234,0.1)\';this.style.transform=\'translateY(0)\'">'
+
+            # Row 1
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'
+            '<div>'
+            '<div style="font-family:Outfit,sans-serif;font-size:1.08rem;font-weight:700;color:#1e293b;margin-bottom:3px;">' + str(row['Subject']) + '</div>'
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+            '<span style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4338ca;padding:2px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;">' + str(row['Subject Code']) + '</span>'
+            '<span style="font-family:Outfit,sans-serif;font-size:0.82rem;color:#94a3b8;">🕐 ' + str(row['Time']) + '</span>'
+            '</div>'
+            '</div>'
+            '<div style="background:' + bar_bg + ';color:' + bar_color + ';font-family:Outfit,sans-serif;font-size:1.5rem;font-weight:800;'
+            'padding:6px 18px;border-radius:14px;border:1px solid ' + bar_border + ';min-width:70px;text-align:center;">' + str(pct) + '%</div>'
+            '</div>'
+
+            # Row 2 – progress bar
+            '<div style="background:#f1f5f9;border-radius:99px;height:8px;overflow:hidden;margin-bottom:10px;">'
+            '<div style="width:' + str(pct) + '%;height:100%;background:linear-gradient(90deg,' + bar_color + '88,' + bar_color + ');border-radius:99px;"></div>'
+            '</div>'
+
+            # Row 3 – pills
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+            '<span style="background:#f0fdf4;color:#16a34a;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #bbf7d0;">✅ ' + str(present) + ' Present</span>'
+            '<span style="background:#fef2f2;color:#dc2626;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #fecaca;">❌ ' + str(absent) + ' Absent</span>'
+            '<span style="background:#f8fafc;color:#475569;padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid #e2e8f0;">👥 ' + str(total) + ' Total</span>'
+            '</div>'
+            '</div>'
+        )
+        st.html(card)
 
 
 def register_teacher(username, name, pswrd, pswrd_cnfrm):
