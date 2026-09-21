@@ -17,6 +17,7 @@ from src.database.config import supabase
 from src.components.dialog_attend_result import attend_result
 from src.components.dialog_voice_attend import voice_attendance
 from src.components.dialog_delete_subject import confirm_delete_subject
+from src.components.dialog_session_detail import session_detail_dialog
 
 def teacher_screen():
 
@@ -252,12 +253,13 @@ def attendance_records():
             "Time"         : datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N/A",
             "Subject"      : r['subjects']['name'],
             "Subject Code" : r['subjects']['subject_code'],
+            "subject_id"   : r.get('subject_id'),
             "is_present"   : bool(r.get('is_present', False))
         })
 
     df = pd.DataFrame(data)
     summary = (
-        df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code'])
+        df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code', 'subject_id'])
         .agg(
             Present_Count=('is_present', 'sum'),
             Total_Count  =('is_present', 'count')
@@ -355,15 +357,41 @@ def attendance_records():
             '<div style="width:' + str(pct) + '%;height:100%;background:linear-gradient(90deg,' + bar_color + '88,' + bar_color + ');border-radius:99px;"></div>'
             '</div>'
 
-            # Row 3 – pills
-            '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
-            '<span style="background:' + pres_pill_bg + ';color:' + pres_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + pres_pill_border + ';">✅ ' + str(present) + ' Present</span>'
-            '<span style="background:' + abs_pill_bg + ';color:' + abs_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + abs_pill_border + ';">❌ ' + str(absent) + ' Absent</span>'
-            '<span style="background:' + tot_pill_bg + ';color:' + tot_pill_col + ';padding:3px 12px;border-radius:20px;font-size:0.82rem;font-weight:600;font-family:Outfit,sans-serif;border:1px solid ' + tot_pill_border + ';">👥 ' + str(total) + ' Total</span>'
-            '</div>'
             '</div>'
         )
         st.html(card)
+
+        # ── Interactive present / absent buttons (replace static pills) ──
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button(
+                f"✅ {present} Present",
+                key=f"pres_{row['subject_id']}_{row['ts_group']}",
+            ):
+                session_detail_dialog(
+                    int(row['subject_id']),
+                    row['ts_group'],
+                    str(row['Subject']),
+                    'present',
+                )
+        with b2:
+            if st.button(
+                f"❌ {absent} Absent",
+                key=f"abs_{row['subject_id']}_{row['ts_group']}",
+                type='secondary',
+            ):
+                session_detail_dialog(
+                    int(row['subject_id']),
+                    row['ts_group'],
+                    str(row['Subject']),
+                    'absent',
+                )
+        with b3:
+            st.html(
+                '<div style="text-align:center;padding:8px 12px;border-radius:20px;font-size:0.82rem;'
+                'font-weight:600;font-family:Outfit,sans-serif;background:' + tot_pill_bg + ';color:' + tot_pill_col + ';'
+                'border:1px solid ' + tot_pill_border + ';">👥 ' + str(total) + ' Total</div>'
+            )
 
 
 def register_teacher(username, name, pswrd, pswrd_cnfrm):

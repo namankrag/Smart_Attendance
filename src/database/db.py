@@ -103,6 +103,29 @@ def get_attendance_for_teacher(teacher_id):
     return response.data
 
 @db_retry()
+def get_session_details(subject_id, timestamp):
+    """Fetch all attendance log entries for a specific session, joined with student names."""
+    response = (
+        supabase.table('attendance_logs')
+        .select('*, students(name, student_id)')
+        .eq('subject_id', subject_id)
+        .eq('timestamp', timestamp)
+        .execute()
+    )
+    return response.data
+
+@db_retry()
+def update_attendance_status(log_id, is_present):
+    """Toggle the is_present status of a single attendance log entry."""
+    response = (
+        supabase.table('attendance_logs')
+        .update({'is_present': is_present})
+        .eq('id', log_id)
+        .execute()
+    )
+    return response.data
+
+@db_retry()
 def delete_subject(subject_id):
     """Cascade-delete a subject and all its related data:
        attendance_logs → subject_students → subjects
