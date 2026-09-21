@@ -3,7 +3,7 @@ from PIL import Image
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-@st.dialog("Add Classroom Photos")
+@st.dialog("Add Classroom Photos", width="large")
 def add_photos_dialog():
     dialog_banner(
         "Add Photos",

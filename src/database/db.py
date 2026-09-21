@@ -63,8 +63,34 @@ def get_teacher_subjects(teach_id):
 
 @db_retry()
 def enroll_student_to_subject(student_id, subject_id):
-    data = {'student_id' : student_id, 'subject_id' : subject_id}
+    """Enroll a student and mark every already-held session as absent.
+
+    A class session is represented by one shared timestamp across its attendance
+    rows. Backfilling a false row makes historic teacher percentages include the
+    newly enrolled student immediately, while preserving the original session.
+    """
+    prior_sessions = (
+        supabase.table('attendance_logs')
+        .select('timestamp')
+        .eq('subject_id', subject_id)
+        .execute()
+    )
+    timestamps = sorted({row.get('timestamp') for row in prior_sessions.data if row.get('timestamp')})
+
+    data = {'student_id': student_id, 'subject_id': subject_id}
     response = supabase.table('subject_students').insert(data).execute()
+
+    if timestamps:
+        historic_absences = [
+            {
+                'student_id': student_id,
+                'subject_id': subject_id,
+                'timestamp': timestamp,
+                'is_present': False,
+            }
+            for timestamp in timestamps
+        ]
+        supabase.table('attendance_logs').insert(historic_absences).execute()
     return response.data
 
 @db_retry()
@@ -81,8 +107,12 @@ def get_student_subjects(student_id):
         sub = item.get('subjects', {})
         if sub:
             attend = sub.get('attendance_logs', [])
-            unique_session = len(set(log['timestamp'] for log in attend))
+            session_timestamps = sorted({log['timestamp'] for log in attend if log.get('timestamp')})
+            unique_session = len(session_timestamps)
             sub['total_classes'] = unique_session
+            # Kept for the student UI so legacy enrollments can still show
+            # historic sessions as absent even before their rows were backfilled.
+            sub['session_timestamps'] = session_timestamps
             sub.pop('attendance_logs', None)
 
     return subjects
@@ -99,7 +129,51 @@ def create_attendance(logs):
 
 @db_retry()
 def get_attendance_for_teacher(teacher_id):
+    """Return teacher records after repairing any legacy enrollment gaps.
+
+    Older enrollments may predate the attendance backfill added to
+    ``enroll_student_to_subject``. Before calculating a teacher's records, add
+    an absent row for every active enrolled student missing from a held session.
+    This keeps each session's total aligned with current enrollment.
+    """
     response = supabase.table('attendance_logs').select('*, subjects!inner(*)').eq('subjects.teacher_id', teacher_id).execute()
+    records = response.data
+
+    sessions_by_subject = {}
+    recorded_rows = set()
+    for record in records:
+        subject_id = record.get('subject_id')
+        timestamp = record.get('timestamp')
+        student_id = record.get('student_id')
+        if subject_id is None or timestamp is None:
+            continue
+        sessions_by_subject.setdefault(subject_id, set()).add(timestamp)
+        recorded_rows.add((subject_id, timestamp, student_id))
+
+    missing_rows = []
+    for subject_id, timestamps in sessions_by_subject.items():
+        enrolled = (
+            supabase.table('subject_students')
+            .select('student_id')
+            .eq('subject_id', subject_id)
+            .execute()
+        )
+        for enrollment in enrolled.data:
+            student_id = enrollment.get('student_id')
+            for timestamp in timestamps:
+                if (subject_id, timestamp, student_id) not in recorded_rows:
+                    missing_rows.append({
+                        'student_id': student_id,
+                        'subject_id': subject_id,
+                        'timestamp': timestamp,
+                        'is_present': False,
+                    })
+
+    if missing_rows:
+        supabase.table('attendance_logs').insert(missing_rows).execute()
+        # Re-read so the caller receives the repaired totals in this same view.
+        response = supabase.table('attendance_logs').select('*, subjects!inner(*)').eq('subjects.teacher_id', teacher_id).execute()
+
     return response.data
 
 @db_retry()

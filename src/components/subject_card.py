@@ -1,20 +1,20 @@
 import streamlit as st
 from src.ui.base_layout import is_dark_theme
 
-def subject_card(name, code, section, stats=None, footer_callback=None):
+def subject_card(name, code, section, stats=None, action_callback=None, footer_callback=None):
     dark = is_dark_theme()
 
-    bg_style = "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" if dark else "linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)"
-    border_left_col = "#818cf8" if dark else "#667eea"
-    card_border = "border:1px solid rgba(129, 140, 248, 0.2);" if dark else ""
+    bg_style = "linear-gradient(145deg, #142337 0%, #101c2d 100%)" if dark else "linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)"
+    border_left_col = "#2dd4bf" if dark else "#0f766e"
+    card_border = "border:1px solid #294058;" if dark else "border:1px solid #dbe5f0;"
     shadow_default = "0 8px 30px rgba(0, 0, 0, 0.4)" if dark else "0 8px 30px rgba(102, 126, 234, 0.15)"
     shadow_hover   = "0 12px 40px rgba(129, 140, 248, 0.3)" if dark else "0 12px 40px rgba(102, 126, 234, 0.25)"
     
-    title_gradient = "linear-gradient(135deg, #818cf8 0%, #c084fc 100%)" if dark else "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    title_gradient = "linear-gradient(135deg, #5eead4 0%, #a5b4fc 100%)" if dark else "linear-gradient(135deg, #0f766e 0%, #4f46e5 100%)"
     sub_color = "#94a3b8" if dark else "#64748b"
     
-    code_bg = "linear-gradient(135deg, #312e81 0%, #4338ca 100%)" if dark else "linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)"
-    code_color = "#a5b4fc" if dark else "#4338ca"
+    code_bg = "rgba(45,212,191,.13)" if dark else "#e6fffb"
+    code_color = "#5eead4" if dark else "#0f766e"
     section_color = "#cbd5e1" if dark else "#334155"
 
     html = (
@@ -34,8 +34,8 @@ def subject_card(name, code, section, stats=None, footer_callback=None):
 
     if stats:
         html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;">'
-        pill_bg_default = "linear-gradient(135deg, #334155 0%, #1e293b 100%)" if dark else "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)"
-        pill_bg_hover   = "linear-gradient(135deg, #312e81 0%, #4338ca 100%)" if dark else "linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)"
+        pill_bg_default = "#1b2b42" if dark else "#f1f5f9"
+        pill_bg_hover   = "#24415a" if dark else "#e6fffb"
         pill_text_col   = "#cbd5e1" if dark else "#334155"
         val_text_col    = "#f8fafc" if dark else "#1e293b"
 
@@ -55,6 +55,9 @@ def subject_card(name, code, section, stats=None, footer_callback=None):
     html += '</div>'
 
     st.html(html)
+
+    if action_callback:
+        action_callback()
 
     if footer_callback:
         footer_callback()

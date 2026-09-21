@@ -5,7 +5,7 @@ from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 import time
 
-@st.dialog("Enroll in Subject")
+@st.dialog("Enroll in Subject", width="medium")
 def enroll_dilog():
     dialog_banner(
         "Join a Subject",

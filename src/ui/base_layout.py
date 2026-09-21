@@ -1,829 +1,112 @@
+"""Shared visual language for the SmartClass Streamlit app."""
+
 import streamlit as st
 
+
 def is_dark_theme() -> bool:
-    return st.session_state.get('theme', 'light') == 'dark'
+    return st.session_state.get("theme", "light") == "dark"
 
-def style_bg_home():
+
+def style_bg_home() -> None:
+    """Apply the distinct, slightly richer backdrop used by the landing page."""
     if is_dark_theme():
-        st.markdown("""
-        <style>
-            .stApp {
-                background: linear-gradient(135deg, #090d16 0%, #111827 50%, #1e1b4b 100%) !important;
-            }
-    
-            /* Heading on dark purple space background */
-            .stApp h1 {
-                color: #f8fafc !important;
-                text-shadow: 0 4px 25px rgba(0, 0, 0, 0.6) !important;
-            }
-
-            /* Portal cards in Dark Mode */
-            .stApp div[data-testid="stColumn"]:has(img) {
-                background: rgba(30, 41, 59, 0.85) !important;
-                border: 1px solid rgba(129, 140, 248, 0.25) !important;
-                padding: 2.2rem 2rem !important;
-                border-radius: 2rem !important;
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
-                backdrop-filter: blur(14px) !important;
-                transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease !important;
-            }
-
-            .stApp div[data-testid="stColumn"]:has(img):hover {
-                transform: translateY(-6px) !important;
-                box-shadow: 0 28px 70px rgba(129, 140, 248, 0.25) !important;
-                border-color: rgba(129, 140, 248, 0.5) !important;
-            }
-
-            .stApp div[data-testid="stColumn"]:has(img) > div:first-child {
-                display: flex !important;
-                flex-direction: column !important;
-                height: 100% !important;
-                width: 100% !important;
-            }
-
-            .stApp div[data-testid="stColumn"]:has(img) img {
-                height: 145px !important;
-                width: auto !important;
-                object-fit: contain !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        background = "radial-gradient(circle at 14% 12%, #164e63 0, transparent 28%), radial-gradient(circle at 86% 82%, #312e81 0, transparent 28%), #07111f"
     else:
-        st.markdown("""
-        <style>
-            .stApp {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            }
-    
-            /* White heading on the purple gradient home background */
-            .stApp h1 {
-                color: white !important;
-                text-shadow: 0 4px 25px rgba(0, 0, 0, 0.25) !important;
-            }
+        background = "radial-gradient(circle at 15% 12%, #ccfbf1 0, transparent 29%), radial-gradient(circle at 86% 85%, #e0e7ff 0, transparent 32%), #f8fafc"
+    st.html(f"<style>.stApp {{ background: {background}; }}</style>")
 
-            /* Portal cards */
-            .stApp div[data-testid="stColumn"]:has(img) {
-                background: rgba(255, 255, 255, 0.95) !important;
-                padding: 2.2rem 2rem !important;
-                border-radius: 2rem !important;
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25) !important;
-                backdrop-filter: blur(10px) !important;
-                transition: transform 0.3s ease, box-shadow 0.3s ease !important;
-            }
 
-            .stApp div[data-testid="stColumn"]:has(img):hover {
-                transform: translateY(-6px) !important;
-                box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32) !important;
-            }
-
-            .stApp div[data-testid="stColumn"]:has(img) > div:first-child {
-                display: flex !important;
-                flex-direction: column !important;
-                height: 100% !important;
-                width: 100% !important;
-            }
-
-            .stApp div[data-testid="stColumn"]:has(img) img {
-                height: 145px !important;
-                width: auto !important;
-                object-fit: contain !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-def style_bg_dashboard():
+def style_bg_dashboard() -> None:
+    """Apply a quiet, readable dashboard backdrop in either theme."""
     if is_dark_theme():
-        st.markdown("""
-        <style>
-            .stApp {
-                background: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #0f172a 100%) !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        background = "radial-gradient(circle at 94% 0%, rgba(20,184,166,.13), transparent 25%), radial-gradient(circle at 2% 100%, rgba(99,102,241,.14), transparent 30%), #09111f"
     else:
-        st.markdown("""
-        <style>
-            .stApp {
-                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-def style_base_layout():
-    if is_dark_theme():
-        st.markdown("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:YEAR@1979&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
-
-        #MainMenu, footer, header {
-            visibility: hidden;
-        }
-
-        .block-container {
-            padding-top: 1.5rem !important;    
-        }
-
-        body, .stApp {
-            color: #f8fafc !important;
-        }
-
-        h1 {
-            font-family: 'Climate Crisis', sans-serif !important;
-            font-size: 3.5rem !important;
-            line-height: 1.1 !important;
-            margin-bottom: 0rem !important;
-            color: #f8fafc !important;
-            letter-spacing: 2px !important;
-            -webkit-text-fill-color: #f8fafc !important;
-        }
-
-        h2 {
-            font-family: 'Climate Crisis', sans-serif !important;
-            font-size: 2rem !important;
-            line-height: 0.9 !important;
-            margin-bottom: 0rem !important;
-            color: #f1f5f9 !important;
-            -webkit-text-fill-color: #f1f5f9 !important;
-        }
-        
-        h3, h4, p, span, label {
-            font-family: 'Outfit', sans-serif;
-            color: #e2e8f0;
-        }
-
-        /* Enhanced Buttons in Dark Mode */
-        button {
-            border-radius: 1rem !important;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-            color: white !important;
-            padding: 12px 24px !important;
-            border: none !important;
-            font-weight: 600 !important;
-            font-family: 'Outfit', sans-serif !important;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4) !important;
-            transition: all 0.3s ease !important;
-        }
-
-        button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(129, 140, 248, 0.6) !important;
-        }
-
-        button[kind = "secondary"] {
-            background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%) !important;
-            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4) !important;
-        }
-
-        button[kind = "secondary"]:hover {
-            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.6) !important;
-        }
-
-        button[kind = "tertiary"] {
-            background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
-            color: #cbd5e1 !important;
-            border: 1px solid #475569 !important;
-        }
-
-        button[kind = "tertiary"]:hover {
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
-            background: linear-gradient(135deg, #475569 0%, #334155 100%) !important;
-        }
-
-        /* Dedicated Glassmorphic Theme Toggle Button Styling (Dark Mode) */
-        button[key*="theme_toggle"] {
-            border-radius: 999px !important;
-            background: rgba(30, 41, 59, 0.75) !important;
-            color: #f8fafc !important;
-            border: 1px solid rgba(129, 140, 248, 0.35) !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(129, 140, 248, 0.15) !important;
-            backdrop-filter: blur(12px) !important;
-            padding: 10px 20px !important;
-            font-size: 0.9rem !important;
-        }
-
-        button[key*="theme_toggle"]:hover {
-            background: rgba(51, 65, 85, 0.9) !important;
-            border-color: rgba(129, 140, 248, 0.6) !important;
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(129, 140, 248, 0.3) !important;
-        }
-
-        /* Enhanced Input Fields in Dark Mode */
-        input[type="text"], input[type="password"], textarea,
-        div[data-baseweb="input"], div[data-baseweb="input"] input,
-        div[data-testid="stTextInput"] input {
-            border-radius: 0.75rem !important;
-            border: 2px solid #334155 !important;
-            padding: 12px 16px !important;
-            font-family: 'Outfit', sans-serif !important;
-            transition: all 0.3s ease !important;
-            background: #1e293b !important;
-            color: #f8fafc !important;
-        }
-
-        input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
-            border-color: #818cf8 !important;
-            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
-            outline: none !important;
-            color: #f8fafc !important;
-        }
-
-        input[type="text"]::placeholder, input[type="password"]::placeholder, textarea::placeholder {
-            color: #64748b !important;
-            opacity: 1 !important;
-        }
-
-        /* Enhanced Code Block in Dark Mode */
-        div[data-testid="stCodeBlock"], pre, code, .stCodeBlock {
-            background-color: #1e293b !important;
-            color: #38bdf8 !important;
-            border: 1px solid #334155 !important;
-            border-radius: 0.75rem !important;
-        }
-
-        div[data-testid="stCodeBlock"] * {
-            color: #38bdf8 !important;
-            background-color: transparent !important;
-        }
-
-        div[data-testid="stCodeBlock"] button {
-            background: #334155 !important;
-            color: #f8fafc !important;
-            border-radius: 0.5rem !important;
-        }
-
-        /* ── Dialog / Modal in Dark Mode ──────────────────────────────── */
-        div[data-testid="stDialog"] > div[role="dialog"] {
-            border-radius: 1.8rem !important;
-            background-color: #0f172a !important;
-            color: #f8fafc !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            overflow: hidden !important;
-            box-shadow:
-                0 30px 80px rgba(0, 0, 0, 0.8),
-                0 0 0 1px rgba(129, 140, 248, 0.2) !important;
-            animation: dialogPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-        }
-
-        @keyframes dialogPop {
-            from { opacity: 0; transform: scale(0.85) translateY(20px); }
-            to   { opacity: 1; transform: scale(1)    translateY(0);    }
-        }
-
-        div[data-testid="stDialog"] section {
-            padding: 0 !important;
-            background-color: #0f172a !important;
-        }
-
-        div[data-testid="stDialog"] * {
-            color: #f8fafc;
-        }
-
-        /* Enhanced Containers */
-        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
-            border-radius: 1rem !important;
-        }
-
-        div[data-testid="column"] {
-            background: transparent !important;
-        }
-
-        /* Enhanced Dividers */
-        hr {
-            margin: 2rem 0 !important;
-            border: none !important;
-            height: 2px !important;
-            background: linear-gradient(90deg, transparent, #334155, transparent) !important;
-        }
-
-        /* Animated Camera Input in Dark Mode */
-        div[data-testid="stCameraInput"] {
-            border-radius: 1rem !important;
-            overflow: visible !important;
-            border: none !important;
-            position: relative !important;
-        }
-
-        div[data-testid="stCameraInput"]::before {
-            content: '' !important;
-            position: absolute !important;
-            inset: -3px !important;
-            border-radius: 1.2rem !important;
-            padding: 3px !important;
-            background: linear-gradient(
-                var(--angle, 0deg),
-                #818cf8, #c084fc, #f472b6, #fb7185, #818cf8
-            ) !important;
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0) !important;
-            -webkit-mask-composite: xor !important;
-            mask-composite: exclude !important;
-            animation: spin-border 3s linear infinite !important;
-            box-shadow: 0 0 20px rgba(129, 140, 248, 0.7) !important;
-            z-index: 10 !important;
-            pointer-events: none !important;
-        }
-
-        div[data-testid="stCameraInput"]::after {
-            content: '' !important;
-            position: absolute !important;
-            inset: -3px !important;
-            border-radius: 1.2rem !important;
-            background: linear-gradient(
-                var(--angle, 0deg),
-                #818cf8, #c084fc, #f472b6, #fb7185, #818cf8
-            ) !important;
-            filter: blur(12px) !important;
-            opacity: 0.5 !important;
-            animation: spin-border 3s linear infinite !important;
-            z-index: 0 !important;
-            pointer-events: none !important;
-        }
-
-        @property --angle {
-            syntax: '<angle>' !important;
-            initial-value: 0deg !important;
-            inherits: false !important;
-        }
-
-        @keyframes spin-border {
-            0%   { --angle: 0deg;   }
-            100% { --angle: 360deg; }
-        }
-
-        /* Force camera feed and preview to be straight (un-mirrored) */
-        div[data-testid="stCameraInput"] video,
-        div[data-testid="stCameraInput"] canvas,
-        div[data-testid="stCameraInput"] img {
-            border-radius: 0.9rem !important;
-            position: relative !important;
-            z-index: 1 !important;
-            transform: scaleX(1) !important;
-            -webkit-transform: scaleX(1) !important;
-        }
-
-        /* Enhanced Audio Input in Dark Mode */
-        div[data-testid="stAudioInput"] {
-            border-radius: 1.2rem !important;
-            border: 2px solid #334155 !important;
-            padding: 1.25rem !important;
-            background: #1e293b !important;
-            color: #f8fafc !important;
-            overflow: visible !important;
-        }
-
-        /* Reset and properly size internal buttons inside stAudioInput */
-        div[data-testid="stAudioInput"] button {
-            border-radius: 0.75rem !important;
-            padding: 8px 14px !important;
-            min-height: auto !important;
-            box-shadow: none !important;
-            font-size: 0.9rem !important;
-            width: auto !important;
-        }
-
-        /* Top-right action buttons (Download / Clear) inside stAudioInput */
-        div[data-testid="stAudioInput"] [data-testid*="Action"] button,
-        div[data-testid="stAudioInput"] div[class*="StyledActions"] button,
-        div[data-testid="stAudioInput"] button[aria-label*="clear" i],
-        div[data-testid="stAudioInput"] button[aria-label*="download" i],
-        div[data-testid="stAudioInput"] button[title*="clear" i],
-        div[data-testid="stAudioInput"] button[title*="download" i],
-        div[data-testid="stAudioInput"] button[title*="Delete" i] {
-            padding: 5px 10px !important;
-            border-radius: 8px !important;
-            background: rgba(255, 255, 255, 0.12) !important;
-            color: #f8fafc !important;
-            box-shadow: none !important;
-            transform: none !important;
-            margin: 0 3px !important;
-        }
-
-        div[data-testid="stAudioInput"] button[aria-label*="clear" i]:hover,
-        div[data-testid="stAudioInput"] button[aria-label*="download" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="clear" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="download" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="Delete" i]:hover {
-            background: rgba(255, 255, 255, 0.22) !important;
-        }
-
-        /* Enhanced File Uploader in Dark Mode */
-        div[data-testid="stFileUploader"] {
-            border-radius: 1rem !important;
-            border: 2px dashed #475569 !important;
-            background: rgba(99, 102, 241, 0.05) !important;
-            transition: all 0.3s ease !important;
-        }
-
-        div[data-testid="stFileUploader"]:hover {
-            border-color: #818cf8 !important;
-            background: rgba(129, 140, 248, 0.1) !important;
-        }
-
-        /* Enhanced Dataframe in Dark Mode */
-        div[data-testid="stDataFrame"] {
-            border-radius: 1rem !important;
-            overflow: hidden !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
-            background: #1e293b !important;
-        }
-
-        /* Enhanced Toast Messages */
-        div[data-testid="stToast"] {
-            border-radius: 1rem !important;
-            background: #1e293b !important;
-            color: #f8fafc !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
-            backdrop-filter: blur(10px) !important;
-            border: 1px solid #334155 !important;
-        }
-
-        /* Spinner styling */
-        div[data-testid="stSpinner"] > div {
-            border-color: #818cf8 transparent transparent transparent !important;
-        }
-
-        /* Select box styling in Dark Mode */
-        div[data-baseweb="select"] {
-            border-radius: 0.75rem !important;
-        }
-
-        div[data-baseweb="select"] > div {
-            border-radius: 0.75rem !important;
-            border: 2px solid #334155 !important;
-            background: #1e293b !important;
-            color: #f8fafc !important;
-        }
-
-        div[data-baseweb="select"] * {
-            color: #f8fafc !important;
-        }
-
-        div[data-baseweb="select"]:focus-within > div {
-            border-color: #818cf8 !important;
-            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
-        }
-        
-        ul[role="listbox"] {
-            background-color: #1e293b !important;
-            color: #f8fafc !important;
-            border: 1px solid #334155 !important;
-        }
-
-        ul[role="listbox"] li {
-            background-color: #1e293b !important;
-            color: #f8fafc !important;
-        }
-
-        ul[role="listbox"] li:hover {
-            background-color: #334155 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:YEAR@1979&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
-
-        /* Hide Top Bar of streamlit */
-        #MainMenu, footer, header {
-            visibility: hidden;
-        }
-        
-        .block-container {
-            padding-top: 1.5rem !important;    
-        }
-
-        h1 {
-            font-family: 'Climate Crisis', sans-serif !important;
-            font-size: 3.5rem !important;
-            line-height: 1.1 !important;
-            margin-bottom: 0rem !important;
-            color: #1e293b !important;
-            letter-spacing: 2px !important;
-        }
-
-        h2 {
-            font-family: 'Climate Crisis', sans-serif !important;
-            font-size: 2rem !important;
-            line-height: 0.9 !important;
-            margin-bottom: 0rem !important;
-            color: #1e293b !important;
-        }
-        
-        h3, h4, p {
-            font-family: 'Outfit', sans-serif;    
-        }
-
-        /* Enhanced Buttons */
-        button {
-            border-radius: 1rem !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            color: white !important;
-            padding: 12px 24px !important;
-            border: none !important;
-            font-weight: 600 !important;
-            font-family: 'Outfit', sans-serif !important;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-            transition: all 0.3s ease !important;
-        }
-
-        button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
-        }
-
-        button[kind = "secondary"] {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
-            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4) !important;
-        }
-
-        button[kind = "secondary"]:hover {
-            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6) !important;
-        }
-
-        button[kind = "tertiary"] {
-            background: linear-gradient(135deg, #434343 0%, #000000 100%) !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-        }
-
-        button[kind = "tertiary"]:hover {
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
-        }
-
-        /* Dedicated Glassmorphic Theme Toggle Button Styling (Light Mode) */
-        button[key*="theme_toggle"] {
-            border-radius: 999px !important;
-            background: rgba(255, 255, 255, 0.28) !important;
-            color: #ffffff !important;
-            border: 1px solid rgba(255, 255, 255, 0.5) !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12) !important;
-            backdrop-filter: blur(12px) !important;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
-            padding: 10px 20px !important;
-            font-size: 0.9rem !important;
-        }
-
-        button[key*="theme_toggle"]:hover {
-            background: rgba(255, 255, 255, 0.45) !important;
-            border-color: rgba(255, 255, 255, 0.8) !important;
-            color: #ffffff !important;
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18) !important;
-        }
-
-        /* Enhanced Input Fields */
-        input[type="text"], input[type="password"], textarea {
-            border-radius: 0.75rem !important;
-            border: 2px solid #e0e7ff !important;
-            padding: 12px 16px !important;
-            font-family: 'Outfit', sans-serif !important;
-            transition: all 0.3s ease !important;
-            background: white !important;
-            color: #1e293b !important;
-        }
-
-        input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
-            border-color: #667eea !important;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-            outline: none !important;
-            color: #1e293b !important;
-        }
-
-        input[type="text"]::placeholder, input[type="password"]::placeholder, textarea::placeholder {
-            color: #94a3b8 !important;
-            opacity: 1 !important;
-        }
-
-        /* Enhanced Code Block in Light Mode */
-        div[data-testid="stCodeBlock"], pre, code, .stCodeBlock {
-            background-color: #f1f5f9 !important;
-            color: #4338ca !important;
-            border: 1px solid #e0e7ff !important;
-            border-radius: 0.75rem !important;
-        }
-
-        div[data-testid="stCodeBlock"] * {
-            color: #4338ca !important;
-            background-color: transparent !important;
-        }
-
-        div[data-testid="stCodeBlock"] button {
-            background: #e0e7ff !important;
-            color: #4338ca !important;
-            border-radius: 0.5rem !important;
-        }
-
-        /* ── Dialog / Modal ─────────────────────────────────────────── */
-        div[data-testid="stDialog"] > div[role="dialog"] {
-            border-radius: 1.8rem !important;
-            border: none !important;
-            overflow: hidden !important;
-            box-shadow:
-                0 30px 80px rgba(102, 126, 234, 0.35),
-                0 0 0 1px rgba(102, 126, 234, 0.1) !important;
-            animation: dialogPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-        }
-
-        @keyframes dialogPop {
-            from { opacity: 0; transform: scale(0.85) translateY(20px); }
-            to   { opacity: 1; transform: scale(1)    translateY(0);    }
-        }
-
-        /* Dialog inner padding */
-        div[data-testid="stDialog"] section {
-            padding: 0 !important;
-        }
-
-        /* Enhanced Containers */
-        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
-            border-radius: 1rem !important;
-        }
-
-        div[data-testid="column"] {
-            background: transparent !important;
-        }
-
-        /* Enhanced Dividers */
-        hr {
-            margin: 2rem 0 !important;
-            border: none !important;
-            height: 2px !important;
-            background: linear-gradient(90deg, transparent, #e0e7ff, transparent) !important;
-        }
-
-        /* Animated Camera Input */
-        div[data-testid="stCameraInput"] {
-            border-radius: 1rem !important;
-            overflow: visible !important;
-            border: none !important;
-            position: relative !important;
-        }
-
-        div[data-testid="stCameraInput"]::before {
-            content: '' !important;
-            position: absolute !important;
-            inset: -3px !important;
-            border-radius: 1.2rem !important;
-            padding: 3px !important;
-            background: linear-gradient(
-                var(--angle, 0deg),
-                #667eea, #a78bfa, #f093fb, #f5576c, #667eea
-            ) !important;
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0) !important;
-            -webkit-mask-composite: xor !important;
-            mask-composite: exclude !important;
-            animation: spin-border 3s linear infinite !important;
-            box-shadow: 0 0 18px rgba(102, 126, 234, 0.6) !important;
-            z-index: 10 !important;
-            pointer-events: none !important;
-        }
-
-        div[data-testid="stCameraInput"]::after {
-            content: '' !important;
-            position: absolute !important;
-            inset: -3px !important;
-            border-radius: 1.2rem !important;
-            background: linear-gradient(
-                var(--angle, 0deg),
-                #667eea, #a78bfa, #f093fb, #f5576c, #667eea
-            ) !important;
-            filter: blur(12px) !important;
-            opacity: 0.5 !important;
-            animation: spin-border 3s linear infinite !important;
-            z-index: 0 !important;
-            pointer-events: none !important;
-        }
-
-        @property --angle {
-            syntax: '<angle>' !important;
-            initial-value: 0deg !important;
-            inherits: false !important;
-        }
-
-        @keyframes spin-border {
-            0%   { --angle: 0deg;   }
-            100% { --angle: 360deg; }
-        }
-
-        /* Force camera feed and preview to be straight (un-mirrored) */
-        div[data-testid="stCameraInput"] video,
-        div[data-testid="stCameraInput"] canvas,
-        div[data-testid="stCameraInput"] img {
-            border-radius: 0.9rem !important;
-            position: relative !important;
-            z-index: 1 !important;
-            transform: scaleX(1) !important;
-            -webkit-transform: scaleX(1) !important;
-        }
-
-        /* Enhanced Audio Input */
-        div[data-testid="stAudioInput"] {
-            border-radius: 1.2rem !important;
-            border: 2px solid #e0e7ff !important;
-            padding: 1.25rem !important;
-            background: white !important;
-            overflow: visible !important;
-        }
-
-        /* Reset and properly size internal buttons inside stAudioInput */
-        div[data-testid="stAudioInput"] button {
-            border-radius: 0.75rem !important;
-            padding: 8px 14px !important;
-            min-height: auto !important;
-            box-shadow: none !important;
-            font-size: 0.9rem !important;
-            width: auto !important;
-        }
-
-        /* Top-right action buttons (Download / Clear) inside stAudioInput */
-        div[data-testid="stAudioInput"] [data-testid*="Action"] button,
-        div[data-testid="stAudioInput"] div[class*="StyledActions"] button,
-        div[data-testid="stAudioInput"] button[aria-label*="clear" i],
-        div[data-testid="stAudioInput"] button[aria-label*="download" i],
-        div[data-testid="stAudioInput"] button[title*="clear" i],
-        div[data-testid="stAudioInput"] button[title*="download" i],
-        div[data-testid="stAudioInput"] button[title*="Delete" i] {
-            padding: 5px 10px !important;
-            border-radius: 8px !important;
-            background: #f1f5f9 !important;
-            color: #475569 !important;
-            box-shadow: none !important;
-            transform: none !important;
-            margin: 0 3px !important;
-        }
-
-        div[data-testid="stAudioInput"] button[aria-label*="clear" i]:hover,
-        div[data-testid="stAudioInput"] button[aria-label*="download" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="clear" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="download" i]:hover,
-        div[data-testid="stAudioInput"] button[title*="Delete" i]:hover {
-            background: #e2e8f0 !important;
-        }
-
-        /* Enhanced File Uploader */
-        div[data-testid="stFileUploader"] {
-            border-radius: 1rem !important;
-            border: 2px dashed #e0e7ff !important;
-            background: rgba(102, 126, 234, 0.02) !important;
-            transition: all 0.3s ease !important;
-        }
-
-        div[data-testid="stFileUploader"]:hover {
-            border-color: #667eea !important;
-            background: rgba(102, 126, 234, 0.05) !important;
-        }
-
-        /* Enhanced Dataframe */
-        div[data-testid="stDataFrame"] {
-            border-radius: 1rem !important;
-            overflow: hidden !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
-        }
-
-        /* Enhanced Toast Messages */
-        div[data-testid="stToast"] {
-            border-radius: 1rem !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-            backdrop-filter: blur(10px) !important;
-        }
-
-        /* Spinner styling */
-        div[data-testid="stSpinner"] > div {
-            border-color: #667eea transparent transparent transparent !important;
-        }
-
-        /* Select box styling */
-        div[data-baseweb="select"] {
-            border-radius: 0.75rem !important;
-        }
-
-        div[data-baseweb="select"] > div {
-            border-radius: 0.75rem !important;
-            border: 2px solid #e0e7ff !important;
-            background: white !important;
-            color: #1e293b !important;
-        }
-
-        div[data-baseweb="select"] * {
-            color: #1e293b !important;
-        }
-
-        div[data-baseweb="select"]:focus-within > div {
-            border-color: #667eea !important;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-        }
-        </style>  
-        """, unsafe_allow_html=True)
+        background = "radial-gradient(circle at 96% 0%, rgba(45,212,191,.16), transparent 24%), radial-gradient(circle at 0% 100%, rgba(199,210,254,.35), transparent 30%), #f6f8fc"
+    st.html(f"<style>.stApp {{ background: {background}; }}</style>")
+
+
+def style_base_layout() -> None:
+    """Style Streamlit primitives once so screens and dialogs stay cohesive."""
+    dark = is_dark_theme()
+    c = ({
+        "surface": "#101c2d", "text": "#f4f8ff", "muted": "#c3d0e1", "line": "#38526e",
+        "field": "#0c1727", "primary": "#0f9b8e", "primary_deep": "#0f766e", "accent": "#818cf8",
+        "danger": "#fb7185", "shadow": "rgba(0,0,0,.32)", "dialog": "#101c2d",
+    } if dark else {
+        "surface": "rgba(255,255,255,.88)", "text": "#10243e", "muted": "#475b73", "line": "#cbd8e6",
+        "field": "#ffffff", "primary": "#0f766e", "primary_deep": "#115e59", "accent": "#4f46e5",
+        "danger": "#e11d48", "shadow": "rgba(15,23,42,.10)", "dialog": "#ffffff",
+    })
+    st.html(f"""
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+      #MainMenu, footer {{ visibility:hidden; }}
+      [data-testid="stHeader"] {{ background:transparent !important; }}
+      [data-testid="stAppDeployButton"] {{ display:none !important; }}
+      [data-testid="stSidebarCollapsedControl"] {{ visibility:visible !important; }}
+      html, body, [class*="css"] {{ font-family:'DM Sans',sans-serif; }}
+      .block-container {{ max-width:1180px; padding-top:2rem; padding-bottom:2.5rem; }}
+      .stApp, .stApp p, .stApp label, .stApp span {{ color:{c['text']}; }}
+      h1, h2, h3 {{ font-family:'Manrope',sans-serif !important; color:{c['text']} !important; letter-spacing:-.035em; }}
+      h1 {{ font-size:clamp(2rem,4vw,3.1rem) !important; line-height:1.08 !important; }}
+      h2 {{ font-size:clamp(1.45rem,2.8vw,2.05rem) !important; }}
+      h3 {{ font-size:1.18rem !important; }}
+      .stApp p {{ color:{c['muted']}; }}
+      hr {{ border:0; height:1px; background:{c['line']}; margin:1.55rem 0; }}
+      [data-testid="stButton"] > button {{ width:100%; min-height:2.7rem; border:1px solid transparent; border-radius:.75rem; padding:.55rem 1rem; font-family:'DM Sans',sans-serif; font-weight:700; transition:transform .18s ease, box-shadow .18s ease, background .18s ease; box-shadow:0 4px 10px {c['shadow']}; }}
+      [data-testid="stButton"] > button, [data-testid="stButton"] > button * {{ color:{c['text']} !important; fill:currentColor !important; }}
+      [data-testid="stButton"] > button[kind="primary"], [data-testid="stButton"] > button[kind="primary"] * {{ background:{c['primary']}; color:#fff !important; fill:#fff !important; }}
+      [data-testid="stButton"] > button[kind="primary"]:hover {{ background:{c['primary_deep']}; transform:translateY(-1px); box-shadow:0 9px 18px {c['shadow']}; }}
+      [data-testid="stButton"] > button[kind="secondary"], [data-testid="stButton"] > button[kind="secondary"] * {{ background:transparent; color:{c['danger']} !important; fill:{c['danger']} !important; border-color:{c['danger']}; box-shadow:none; }}
+      [data-testid="stButton"] > button[kind="tertiary"], [data-testid="stButton"] > button[kind="tertiary"] * {{ background:{c['surface']}; color:{c['text']} !important; fill:{c['text']} !important; border-color:{c['line']}; box-shadow:none; }}
+      [data-testid="stButton"] > button[kind="tertiary"]:hover {{ border-color:{c['accent']}; color:{c['accent']}; transform:translateY(-1px); }}
+      [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-baseweb="select"] > div {{ background:{c['field']} !important; color:{c['text']} !important; border:1px solid {c['line']} !important; border-radius:.75rem !important; min-height:2.8rem; box-shadow:none !important; }}
+      [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus, [data-baseweb="select"]:focus-within > div {{ border-color:{c['primary']} !important; box-shadow:0 0 0 3px {c['primary']}25 !important; }}
+      [data-testid="stTextInput"] label, [data-testid="stTextArea"] label, [data-testid="stSelectbox"] label {{ color:{c['text']} !important; font-weight:700; font-size:.9rem; }}
+      [data-testid="stTextInput"] input::placeholder, [data-testid="stTextArea"] textarea::placeholder {{ color:{c['muted']} !important; opacity:.75; }}
+      [data-baseweb="select"] *, ul[role="listbox"] *, [data-testid="stSelectbox"] svg {{ color:{c['text']} !important; }}
+      ul[role="listbox"] {{ background:{c['dialog']} !important; border:1px solid {c['line']} !important; }}
+      /* Streamlit's dialog panel has nested wrappers; style the panel and its surface together. */
+      [data-testid="stDialog"] [role="dialog"], [data-testid="stDialog"] [role="dialog"] > div, [data-testid="stDialog"] section {{ background:linear-gradient(145deg, {c['dialog']}, {c['surface']}) !important; }}
+      [data-testid="stDialog"] [role="dialog"] {{ border:1px solid {c['line']} !important; border-radius:1.35rem !important; box-shadow:0 28px 90px {c['shadow']}, 0 0 0 1px {c['accent']}18 !important; overflow:hidden; }}
+      [data-testid="stDialog"] section {{ padding:1.1rem !important; }}
+      [data-testid="stDialog"] h1 {{ font-size:1.35rem !important; color:{c['text']} !important; }}
+      [data-testid="stDialog"] button[aria-label*="close" i], [data-testid="stDialog"] button[aria-label*="close" i] * {{ color:{c['text']} !important; fill:{c['text']} !important; opacity:1 !important; }}
+      [data-testid="stDialog"] button[aria-label*="close" i] {{ border-radius:50% !important; width:2.2rem !important; min-width:2.2rem !important; height:2.2rem !important; background:{c['surface']} !important; border:1px solid {c['line']} !important; box-shadow:none !important; }}
+      /* Streamlit's password toggle is not a regular stButton, so style it separately. */
+      [data-testid="stTextInput"] button {{ background:{c['field']} !important; color:{c['text']} !important; border-color:{c['line']} !important; box-shadow:none !important; }}
+      [data-testid="stTextInput"] button svg, [data-testid="stTextInput"] button * {{ color:{c['text']} !important; fill:currentColor !important; opacity:1 !important; }}
+      [data-testid="stTextInputRootElement"] {{ background:{c['field']} !important; border-radius:.75rem !important; }}
+      [data-testid="stDialog"] [data-testid="stCodeBlock"], [data-testid="stDialog"] pre {{ background:{c['field']} !important; border:1px solid {c['line']} !important; border-radius:.85rem !important; color:{c['text']} !important; }}
+      [data-testid="stDialog"] code, [data-testid="stDialog"] pre * {{ color:{c['text']} !important; }}
+      [data-testid="stDialog"] [data-testid="stHorizontalBlock"] {{ gap:.85rem; }}
+      .dialog-banner {{ position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,.18); }}
+      .dialog-banner::after {{ content:''; position:absolute; width:150px; height:150px; right:-45px; top:-72px; border-radius:50%; background:rgba(255,255,255,.12); }}
+      .dialog-banner h2, .dialog-banner p {{ position:relative; z-index:1; }}
+      [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {{ color:{c['muted']} !important; opacity:1 !important; font-weight:600 !important; }}
+      [data-testid="stDialog"] [data-testid="stAlert"] *, [data-testid="stDialog"] [data-testid="stAlert"] {{ color:{c['text']} !important; opacity:1 !important; }}
+      [data-testid="stFileUploader"], [data-testid="stCameraInput"], [data-testid="stAudioInput"] {{ background:{c['surface']} !important; border:1px dashed {c['line']} !important; border-radius:1rem !important; padding:.7rem !important; }}
+      /* Camera capture/clear actions also live outside Streamlit's standard button wrapper. */
+      [data-testid="stCameraInput"] button {{ background:{c['surface']} !important; color:{c['text']} !important; border:1px solid {c['line']} !important; box-shadow:none !important; }}
+      [data-testid="stCameraInput"] button svg, [data-testid="stCameraInput"] button * {{ color:{c['text']} !important; fill:currentColor !important; opacity:1 !important; }}
+      [data-testid="stDataFrame"] {{ border:1px solid {c['line']}; border-radius:.9rem; overflow:hidden; }}
+      [data-testid="stAlert"] {{ border-radius:.8rem; border:1px solid {c['line']}; }}
+      [data-testid="stToast"] {{ background:{c['dialog']} !important; color:{c['text']} !important; border:1px solid {c['line']}; border-radius:.8rem; }}
+      [data-testid="stImage"] img {{ border-radius:.8rem; }}
+      [data-testid="stVerticalBlockBorderWrapper"] {{ background:{c['surface']}; border:1px solid {c['line']} !important; border-radius:1rem !important; box-shadow:0 10px 28px {c['shadow']}; }}
+      [data-testid="stSidebar"] {{ background:linear-gradient(180deg, {c['surface']}, {c['dialog']}) !important; border-right:1px solid {c['line']} !important; }}
+      [data-testid="stSidebar"] [data-testid="stButton"] > button {{ margin-bottom:.35rem; text-align:left; }}
+      @media (max-width: 720px) {{
+        .block-container {{ padding:1.1rem .9rem 2rem; }}
+        h1 {{ font-size:2rem !important; }}
+        h2 {{ font-size:1.5rem !important; }}
+        [data-testid="stHorizontalBlock"] {{ flex-wrap:wrap !important; gap:.7rem !important; }}
+        [data-testid="column"], [data-testid="stColumn"] {{ flex:1 1 100% !important; width:100% !important; min-width:100% !important; }}
+        [data-testid="stSidebar"] {{ min-width:min(82vw, 20rem) !important; max-width:min(82vw, 20rem) !important; }}
+        [data-testid="stSidebar"] .block-container {{ padding:1.2rem .9rem 2rem !important; }}
+        [data-testid="stDialog"] [role="dialog"] {{ max-width:calc(100vw - 1rem) !important; border-radius:1rem !important; }}
+        [data-testid="stDialog"] section {{ padding:.75rem !important; }}
+        [data-testid="stCameraInput"] {{ padding:.45rem !important; }}
+      }}
+    </style>
+    """)

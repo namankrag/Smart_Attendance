@@ -24,7 +24,8 @@ BASE_DIR = Path(__file__).parent.resolve()
 def main():
     st.set_page_config(
         page_title = 'SmartClass - Making Attendance faster using AI',
-        page_icon = str(BASE_DIR / "img" / "header.png")
+        page_icon = str(BASE_DIR / "img" / "header.png"),
+        initial_sidebar_state = "expanded",
     )
 
     if 'login_type' not in st.session_state:

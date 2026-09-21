@@ -3,7 +3,7 @@ from src.database.db import delete_subject
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-@st.dialog("Delete Subject")
+@st.dialog("Delete Subject", width="medium")
 def confirm_delete_subject(sub_id, sub_name, sub_code):
     dialog_banner("Delete Subject", subtitle="This action cannot be undone", theme="pink")
     dark = is_dark_theme()

@@ -3,7 +3,7 @@ from src.database.db import create_subject
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-@st.dialog("Create New Subject")
+@st.dialog("Create New Subject", width="medium")
 def create_subject_dialog(teach_id):
     dialog_banner(
         "New Subject",

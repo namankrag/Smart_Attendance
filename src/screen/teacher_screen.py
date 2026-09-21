@@ -53,27 +53,7 @@ def teacher_dashboard():
     if "current_teacher_tab" not in st.session_state:
         st.session_state.current_teacher_tab = 'take_attendance'
 
-    tab1, tab2, tab3 = st.columns(3)
-
-    with tab1:
-        type1 = 'primary' if st.session_state.current_teacher_tab == "take_attendance" else 'tertiary'
-        if st.button("Take Attendance", type = type1, width = 'stretch', icon = ":material/ar_on_you:"):
-            st.session_state.current_teacher_tab = "take_attendance"
-            st.rerun()
-
-    with tab2:
-        type2 = 'primary' if st.session_state.current_teacher_tab == "manage_subjects" else 'tertiary'
-        if st.button("Manage Subjects", type = type2, width = 'stretch', icon = ":material/book_ribbon:"):
-            st.session_state.current_teacher_tab = "manage_subjects"
-            st.rerun()
-
-    with tab3:
-        type3 = 'primary' if st.session_state.current_teacher_tab == "attendance_records" else 'tertiary'
-        if st.button("Attendance Records", type = type3, width = 'stretch', icon = ":material/cards_stack:"):
-            st.session_state.current_teacher_tab = "attendance_records"
-            st.rerun()
-
-    st.divider()
+    teacher_navigation()
     if st.session_state.current_teacher_tab == 'take_attendance':
         take_attendance()
     if st.session_state.current_teacher_tab == 'manage_subjects':
@@ -84,9 +64,44 @@ def teacher_dashboard():
     footer_dashboard()
 
 
+def teacher_navigation():
+    """Render a compact, touch-friendly navigation menu in Streamlit's sidebar."""
+    tabs = (
+        ("take_attendance", "Take Attendance", ":material/ar_on_you:"),
+        ("manage_subjects", "Manage Subjects", ":material/book_ribbon:"),
+        ("attendance_records", "Attendance Records", ":material/cards_stack:"),
+    )
+
+    with st.sidebar:
+        st.markdown("### Teacher menu")
+        st.caption("Choose a workspace")
+        for tab_id, label, icon in tabs:
+            if st.button(
+                label,
+                key=f"teacher_nav_{tab_id}",
+                type="primary" if st.session_state.current_teacher_tab == tab_id else "tertiary",
+                icon=icon,
+                width="stretch",
+            ):
+                st.session_state.current_teacher_tab = tab_id
+                st.rerun()
+
+
 def take_attendance():
     teach_id = st.session_state.teacher_data['teacher_id']
-    st.header("Take AI Attendance")
+    dark = is_dark_theme()
+    hero_bg = "linear-gradient(135deg,#12384a,#132442)" if dark else "linear-gradient(135deg,#ecfeff,#eef2ff)"
+    hero_title = "#f8fafc" if dark else "#12304a"
+    hero_copy = "#b8c8dc" if dark else "#52647a"
+    accent = "#5eead4" if dark else "#0f766e"
+    st.html(
+        f'<div style="background:{hero_bg};border:1px solid {accent}45;border-radius:20px;padding:24px 26px;margin:2px 0 20px;box-shadow:0 12px 28px rgba(15,23,42,.12);">'
+        f'<div style="display:inline-flex;align-items:center;gap:7px;color:{accent};font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px;">'
+        '● AI-powered workspace</div>'
+        f'<h2 style="margin:0 0 6px;color:{hero_title}!important;font-size:1.7rem!important;">Take attendance with confidence</h2>'
+        f'<p style="margin:0;color:{hero_copy};max-width:670px;">Choose a class, add classroom photos, then let SmartClass prepare an attendance report for you to review.</p>'
+        '</div>'
+    )
     if 'attendance_images' not in st.session_state:
         st.session_state.attendance_images = []
 
@@ -96,62 +111,65 @@ def take_attendance():
         return
 
     sub_opt = {f"{s['name']} - {s['subject_code']}" : s['subject_id'] for s in subjects}
-    col1, col2 = st.columns([3, 1], vertical_alignment = 'bottom')
-    with col1:
-        selected_sub_label = st.selectbox('Select Subjects', options = list(sub_opt.keys()))
-    with col2:
-        if st.button('Add Photos', type='primary', width='stretch', icon=":material/photo_prints:"):
-            add_photos_dialog()
+    with st.container(border=True):
+        st.caption("01  •  CLASS SETUP")
+        col1, col2 = st.columns([3, 1], vertical_alignment='bottom')
+        with col1:
+            selected_sub_label = st.selectbox('Choose a subject', options=list(sub_opt.keys()))
+        with col2:
+            if st.button('Add classroom photos', type='primary', width='stretch', icon=":material/add_a_photo:"):
+                add_photos_dialog()
+        st.caption("Tip: Add a few clear, well-lit photos for the most reliable results.")
 
     selected_sub_id = sub_opt[selected_sub_label]
-    st.divider()
     if st.session_state.attendance_images:
-        st.header('Added Photos')
-        gallery_cols = st.columns(4)
-
-        for idx, img in enumerate(st.session_state.attendance_images):
-            with gallery_cols[idx % 4]:
-                st.image(img, width='stretch', caption=f"Photo {idx+1}")
+        with st.container(border=True):
+            st.caption(f"02  •  PHOTO WORKSPACE  •  {len(st.session_state.attendance_images)} READY")
+            st.subheader('Classroom photos')
+            gallery_cols = st.columns(4)
+            for idx, img in enumerate(st.session_state.attendance_images):
+                with gallery_cols[idx % 4]:
+                    st.image(img, width='stretch', caption=f"Photo {idx+1}")
     has_photos = bool(st.session_state.attendance_images)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("Clear all photos", type = 'primary', disabled = not has_photos, icon = ":material/delete:"):
-            st.session_state.attendance_images = []
-            st.rerun()
-    with c2:
-        if st.button("Run face analysis", type = 'secondary', disabled= not has_photos, icon = ":material/analytics:"):
-            with st.spinner("Deep Scanning classroom photos in parallel..."):
-                all_detected_ids = predict_attendance_batch(st.session_state.attendance_images)
+    with st.container(border=True):
+        st.caption("03  •  REVIEW & RUN")
+        action_title, action_hint = st.columns([2, 3], vertical_alignment='center')
+        with action_title:
+            st.subheader('Ready for analysis?')
+        with action_hint:
+            st.caption('Your photos are processed only when you choose an attendance method below.')
+        c1, c2, c3 = st.columns([1, 1.35, 1.35])
+        with c1:
+            if st.button("Clear photos", type='secondary', disabled=not has_photos, icon=":material/delete:", width='stretch'):
+                st.session_state.attendance_images = []
+                st.rerun()
+        with c2:
+            if st.button("Analyze faces", type='primary', disabled=not has_photos, icon=":material/face:", width='stretch'):
+                with st.spinner("Deep Scanning classroom photos in parallel..."):
+                    all_detected_ids = predict_attendance_batch(st.session_state.attendance_images)
 
-                enrolled_res = supabase.table('subject_students').select("*, students(*)").eq('subject_id', selected_sub_id).execute()
-                enrolled_stud = enrolled_res.data
+                    enrolled_res = supabase.table('subject_students').select("*, students(*)").eq('subject_id', selected_sub_id).execute()
+                    enrolled_stud = enrolled_res.data
 
-                if not enrolled_stud:
-                    st.warning("No student enrolled in this course!")
-                else:
-                    res, attend_logs = [], []
-                    crnt_timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                    for node in enrolled_stud:
-                        stud = node['students']
-                        sources = all_detected_ids.get(int(stud['student_id']), [])
-                        is_present = len(sources) > 0
-                        res.append({
-                            "Name" : stud['name'],
-                            "ID" : stud['student_id'],
-                            "Source" : ", ".join(sources) if is_present else "-",
-                            "Status" : "✅ Present" if is_present else "❌ Absent"
-                        })
-                        attend_logs.append({
-                            'student_id' : stud['student_id'],
-                            'subject_id' : selected_sub_id,
-                            'timestamp' : crnt_timestamp,
-                            'is_present' : bool(is_present)
-                        })
-
-                attend_result(pd.DataFrame(res), attend_logs)
-    with c3:
-        if st.button("Use Voice Attendance", type='primary', width='stretch', icon=":material/mic:"):
-            voice_attendance(selected_sub_id)
+                    if not enrolled_stud:
+                        st.warning("No student enrolled in this course!")
+                    else:
+                        res, attend_logs = [], []
+                        crnt_timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                        for node in enrolled_stud:
+                            stud = node['students']
+                            sources = all_detected_ids.get(int(stud['student_id']), [])
+                            is_present = len(sources) > 0
+                            res.append({
+                                "Name" : stud['name'], "ID" : stud['student_id'],
+                                "Source" : ", ".join(sources) if is_present else "-",
+                                "Status" : "✅ Present" if is_present else "❌ Absent"
+                            })
+                            attend_logs.append({'student_id': stud['student_id'], 'subject_id': selected_sub_id, 'timestamp': crnt_timestamp, 'is_present': bool(is_present)})
+                        attend_result(pd.DataFrame(res), attend_logs)
+        with c3:
+            if st.button("Voice attendance", type='tertiary', width='stretch', icon=":material/mic:"):
+                voice_attendance(selected_sub_id)
 
 
 def manage_subjects():

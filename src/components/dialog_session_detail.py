@@ -40,17 +40,22 @@ def session_detail_dialog(subject_id, timestamp, subject_name, filter_type):
 
     # ── Count badge ───────────────────────────────────────────────
     n = len(filtered)
-    lbl_col = "#94a3b8"
+    lbl_col = "#d3deec" if dark else "#40566f"
     accent = "#4ade80" if (is_present_view and dark) else "#22c55e" if is_present_view else "#f87171" if dark else "#ef4444"
     st.html(
-        f'<p style="font-family:Outfit,sans-serif;font-size:0.88rem;color:{lbl_col};margin:0 0 10px 0;">'
-        f'<span style="font-weight:700;color:{accent};font-size:1.1rem;">{n}</span>'
+        f'<p style="font-family:DM Sans,sans-serif;font-size:.98rem;color:{lbl_col};-webkit-text-fill-color:{lbl_col};font-weight:700;margin:0 0 12px 0;">'
+        f'<span style="font-weight:800;color:{accent};-webkit-text-fill-color:{accent};font-size:1.12rem;">{n}</span>'
         f' student{"s" if n != 1 else ""}'
         f'</p>'
     )
 
     # ── Student rows ──────────────────────────────────────────────
-    row_bg = "rgba(34,197,94,0.08)" if is_present_view else "rgba(239,68,68,0.08)"
+    row_bg = (
+        "#123d3d" if is_present_view and dark else "#3b1b2a" if dark
+        else "#ecfdf5" if is_present_view else "#fff1f2"
+    )
+    row_text = "#f8fafc" if dark else "#10243e"
+    row_border = "#256b69" if is_present_view and dark else "#7f3047" if dark else "#99f6e4" if is_present_view else "#fecdd3"
     divider_col = "#1e293b" if dark else "#f1f5f9"
 
     for idx, record in enumerate(filtered):
@@ -62,8 +67,8 @@ def session_detail_dialog(subject_id, timestamp, subject_name, filter_type):
         with col1:
             icon = "✅" if is_present_view else "❌"
             st.html(
-                f'<div style="padding:10px 16px;border-radius:12px;background:{row_bg};'
-                f'font-family:Outfit,sans-serif;font-weight:600;font-size:0.95rem;">'
+                f'<div style="padding:13px 16px;border-radius:12px;background:{row_bg};border:1px solid {row_border};'
+                f'color:{row_text};-webkit-text-fill-color:{row_text};font-family:DM Sans,sans-serif;font-weight:800;font-size:1rem;">'
                 f'{icon}  {name}</div>'
             )
         with col2:

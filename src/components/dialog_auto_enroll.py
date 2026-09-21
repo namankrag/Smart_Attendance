@@ -5,7 +5,7 @@ from src.database.config import supabase
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-@st.dialog("Quick Enrollment")
+@st.dialog("Quick Enrollment", width="medium")
 def auto_enroll(sub_code):
     stud_id = st.session_state.student_data['student_id']
     res = supabase.table('subjects').select('subject_id, name').eq('subject_code', sub_code).execute()

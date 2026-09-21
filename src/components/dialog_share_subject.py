@@ -5,7 +5,7 @@ from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 import base64
 
-@st.dialog("Share Class Link")
+@st.dialog("Share Class Link", width="large")
 def share_subject(sub_name, sub_code):
     dialog_banner(
         "Share Class Link",

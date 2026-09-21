@@ -107,7 +107,7 @@ def show_attendance(df, logs):
                 st.error("❌ Sync failed — please try again.")
 
 
-@st.dialog("Attendance Report")
+@st.dialog("Attendance Report", width="large")
 def attend_result(df, logs):
     dialog_banner("Attendance Report", subtitle="Review before saving", theme="teal")
     show_attendance(df, logs)

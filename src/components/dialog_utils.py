@@ -2,34 +2,38 @@ import streamlit as st
 
 # Gradient presets  (start_color, end_color, icon)
 THEMES = {
-    "purple":  ("#667eea", "#764ba2", ""),
-    "pink":    ("#f093fb", "#f5576c", ""),
-    "teal":    ("#43e97b", "#38f9d7", ""),
-    "orange":  ("#fa8231", "#f7b733", ""),
-    "blue":    ("#4facfe", "#00f2fe", ""),
+    "purple":  ("#4f46e5", "#6366f1", ""),
+    "pink":    ("#db2777", "#f43f5e", ""),
+    "teal":    ("#0f766e", "#14b8a6", ""),
+    "orange":  ("#c2410c", "#f59e0b", ""),
+    "blue":    ("#0369a1", "#0ea5e9", ""),
 }
 
 def dialog_banner(title: str, subtitle: str = "", theme: str = "purple"):
     c1, c2 = THEMES.get(theme, THEMES["purple"])[:2]
     icon   = THEMES.get(theme, THEMES["purple"])[2]
+    subtitle_color = {
+        "purple": "#eef2ff", "pink": "#fff1f2", "teal": "#ecfeff",
+        "orange": "#fff7ed", "blue": "#eff6ff",
+    }.get(theme, "#ffffff")
     sub_html = (
-        f'<p style="margin:6px 0 0; font-size:0.92rem; opacity:0.88; '
-        f'font-family:Outfit,sans-serif; font-weight:400;">{subtitle}</p>'
+        f'<p style="margin:7px 0 0; font-size:.95rem; opacity:1; color:{subtitle_color}; '
+        f'-webkit-text-fill-color:{subtitle_color}; font-family:DM Sans,sans-serif; font-weight:700;">{subtitle}</p>'
         if subtitle else ""
     )
     st.markdown(f"""
-        <div style="
+        <div class="dialog-banner" style="
             background: linear-gradient(135deg, {c1} 0%, {c2} 100%);
-            margin: -1rem -1rem 1.4rem -1rem;
-            padding: 1.6rem 1.8rem 1.4rem;
-            border-radius: 1.8rem 1.8rem 0 0;
+            margin: -1rem -1rem 1.35rem -1rem;
+            padding: 1.35rem 1.5rem 1.2rem;
+            border-radius: 1.1rem 1.1rem 0 0;
         ">
             <h2 style="
                 margin: 0;
                 color: white;
-                font-family: 'Climate Crisis', sans-serif;
-                font-size: 1.6rem;
-                letter-spacing: 2px;
+                font-family: 'Manrope', sans-serif;
+                font-size: 1.35rem;
+                letter-spacing: -.03em;
                 -webkit-text-fill-color: white;
                 line-height: 1.2;
             ">{icon} {title}</h2>

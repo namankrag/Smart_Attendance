@@ -28,7 +28,9 @@ def header_home():
         st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
         theme_toggle("home")
 
-    title_color = "#ffffff"
+    is_dark = st.session_state.get('theme', 'light') == 'dark'
+    title_color = "#f8fafc" if is_dark else "#122033"
+    accent = "#5eead4" if is_dark else "#0f766e"
 
     st.html(
         '<style>'
@@ -36,20 +38,13 @@ def header_home():
         '@keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-10px)}}'
         '</style>'
         '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
-        'margin-bottom:40px;margin-top:10px;animation:fadeInDown 0.8s ease-out;">'
-        '<img src="data:image/png;base64,' + logo_b64 + '" style="height:100px;width:auto;'
-        'filter:drop-shadow(0 10px 30px rgba(255,255,255,0.35)) brightness(1.1);'
-        'animation:float 3s ease-in-out infinite;margin-bottom:18px;" />'
+        'margin-bottom:34px;margin-top:4px;animation:fadeInDown 0.8s ease-out;">'
+        '<div style="width:88px;height:88px;display:grid;place-items:center;border-radius:25px;background:rgba(255,255,255,.55);border:1px solid rgba(15,118,110,.18);box-shadow:0 12px 30px rgba(15,23,42,.12);margin-bottom:18px;">'
+        '<img src="data:image/png;base64,' + logo_b64 + '" style="height:62px;width:auto;filter:drop-shadow(0 5px 10px rgba(15,23,42,.18));animation:float 3s ease-in-out infinite;" /></div>'
         '<div style="display:flex;flex-direction:column;align-items:center;gap:0;">'
-        '<span style="font-family:\'Climate Crisis\',sans-serif;font-size:4rem;font-weight:900;'
-        'color:' + title_color + ';letter-spacing:8px;white-space:nowrap;'
-        'text-shadow:0 4px 24px rgba(0,0,0,0.4),0 0 60px rgba(255,255,255,0.2);'
-        'line-height:1;-webkit-text-fill-color:' + title_color + ';">SMART</span>'
-        '<span style="font-family:\'Climate Crisis\',sans-serif;font-size:4rem;font-weight:900;'
-        'letter-spacing:8px;white-space:nowrap;line-height:1;'
-        'background:linear-gradient(90deg,#fde68a 0%,#fbbf24 40%,#f472b6 100%);'
-        '-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">'
-        'CLASS</span>'
+        '<span style="font-family:\'Manrope\',sans-serif;font-size:clamp(2.65rem,7vw,4.4rem);font-weight:800;'
+        'color:' + title_color + ';letter-spacing:-.07em;white-space:nowrap;line-height:.92;">SMART</span>'
+        '<span style="font-family:\'Manrope\',sans-serif;font-size:clamp(2.65rem,7vw,4.4rem);font-weight:800;letter-spacing:-.07em;white-space:nowrap;line-height:.92;color:' + accent + ';">CLASS</span>'
         '</div>'
         '</div>'
     )

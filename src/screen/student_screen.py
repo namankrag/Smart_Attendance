@@ -11,6 +11,7 @@ from src.pipelines.voice_pipeline import get_voice_embedding
 from src.database.db import get_all_students, create_student, get_student_subjects, get_student_attendance, unenroll_student_to_subject
 from src.components.dialog_enroll import enroll_dilog
 from src.components.subject_card import subject_card
+from src.components.dialog_student_attendance import student_attendance_history
 
 def student_dashboard():
     stud_data = st.session_state.student_data
@@ -46,10 +47,15 @@ def student_dashboard():
         logs = get_student_attendance(stud_id)
 
     attended_map = {}
+    absent_map = {}
+    logs_by_subject = {}
     for log in logs:
         sid = log['subject_id']
+        logs_by_subject.setdefault(sid, []).append(log)
         if log.get('is_present'):
             attended_map[sid] = attended_map.get(sid, 0) + 1
+        else:
+            absent_map[sid] = absent_map.get(sid, 0) + 1
 
     cols = st.columns(2)
     for i, sub_node in enumerate(subjects):
@@ -57,6 +63,39 @@ def student_dashboard():
         sid = sub['subject_id']
         total_classes = sub.get('total_classes', 0)
         attended_classes = attended_map.get(sid, 0)
+        subject_logs = list(logs_by_subject.get(sid, []))
+
+        # Existing users enrolled before backfill support may not yet have a
+        # false row per historic session. Build display-only absences so their
+        # card and history are accurate; future enrollments are persisted in DB.
+        recorded_timestamps = {str(log.get('timestamp')) for log in subject_logs if log.get('timestamp')}
+        for timestamp in sub.get('session_timestamps', []):
+            if str(timestamp) not in recorded_timestamps:
+                subject_logs.append({'timestamp': timestamp, 'is_present': False})
+
+        absent_classes = max(total_classes - attended_classes, 0)
+
+        def attendance_actions(bound_name=sub['name'], bound_logs=subject_logs, bound_sid=sid,
+                               attended=attended_classes, absent=absent_classes):
+            present_col, absent_col = st.columns(2)
+            with present_col:
+                if st.button(
+                    f"✓  {attended} Attended",
+                    type='primary',
+                    width='stretch',
+                    key=f"attended_history_{bound_sid}",
+                    icon=":material/calendar_month:",
+                ):
+                    student_attendance_history(bound_name, bound_logs, 'present')
+            with absent_col:
+                if st.button(
+                    f"{absent} Absent",
+                    type='secondary',
+                    width='stretch',
+                    key=f"absent_history_{bound_sid}",
+                    icon=":material/event_busy:",
+                ):
+                    student_attendance_history(bound_name, bound_logs, 'absent')
 
         def unenrolled(bound_sid=sid, bound_sub=sub):
             if st.button("Unenroll from the course", type='primary', width='stretch',
@@ -69,7 +108,8 @@ def student_dashboard():
             subject_card(name = sub['name'],
                          code = sub['subject_code'],
                          section = sub['section'],
-                         stats = [('📅', 'Total', total_classes), ('✅', 'Attended', attended_classes)],
+                         stats = [('📅', 'Total classes', total_classes)],
+                         action_callback = attendance_actions,
                          footer_callback = unenrolled
                         )
     footer_dashboard()
