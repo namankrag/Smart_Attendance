@@ -32,6 +32,7 @@ def style_base_layout() -> None:
         "surface": "#101c2d", "text": "#f4f8ff", "muted": "#c3d0e1", "line": "#38526e",
         "field": "#0c1727", "primary": "#0f9b8e", "primary_deep": "#0f766e", "accent": "#818cf8",
         "danger": "#fb7185", "shadow": "rgba(0,0,0,.32)", "dialog": "#101c2d",
+        "select_icon_filter": "invert(1) brightness(1.5)",  # Invert dark icons to light in dark mode
         # ── Button palette (dark) ──
         # Primary: electric violet → hot pink
         "btn_primary":         "linear-gradient(135deg,#a855f7 0%,#ec4899 50%,#f97316 100%)",
@@ -70,6 +71,7 @@ def style_base_layout() -> None:
         "surface": "rgba(255,255,255,.88)", "text": "#10243e", "muted": "#475b73", "line": "#cbd8e6",
         "field": "#ffffff", "primary": "#0f766e", "primary_deep": "#115e59", "accent": "#4f46e5",
         "danger": "#e11d48", "shadow": "rgba(15,23,42,.10)", "dialog": "#ffffff",
+        "select_icon_filter": "none",  # No filter needed in light mode
         # ── Button palette (light) ──
         # Primary: indigo → purple → pink
         "btn_primary":         "linear-gradient(135deg,#6366f1 0%,#a855f7 50%,#ec4899 100%)",
@@ -273,7 +275,32 @@ def style_base_layout() -> None:
       [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus, [data-baseweb="select"]:focus-within > div {{ border-color:{c['primary']} !important; box-shadow:0 0 0 3px {c['primary']}25 !important; }}
       [data-testid="stTextInput"] label, [data-testid="stTextArea"] label, [data-testid="stSelectbox"] label {{ color:{c['text']} !important; font-weight:700; font-size:.9rem; }}
       [data-testid="stTextInput"] input::placeholder, [data-testid="stTextArea"] textarea::placeholder {{ color:{c['muted']} !important; opacity:.75; }}
-      [data-baseweb="select"] *, ul[role="listbox"] *, [data-testid="stSelectbox"] svg {{ color:{c['text']} !important; }}
+      
+      /* Selectbox dropdown arrow - with theme-aware filter */
+      [data-testid="stSelectbox"] svg[viewBox] {{
+        filter: {c['select_icon_filter']} !important;
+        opacity:1 !important;
+      }}
+      [data-testid="stSelectbox"] svg[viewBox] path,
+      [data-testid="stSelectbox"] svg[viewBox] polygon,
+      [data-testid="stSelectbox"] svg[viewBox] polyline {{
+        opacity:1 !important;
+      }}
+      [data-baseweb="select"] svg[viewBox] {{
+        filter: {c['select_icon_filter']} !important;
+        opacity:1 !important;
+      }}
+      [data-baseweb="select"] svg[viewBox] path,
+      [data-baseweb="select"] svg[viewBox] polygon,
+      [data-baseweb="select"] svg[viewBox] polyline {{
+        opacity:1 !important;
+      }}
+      
+      /* Dropdown text and options color */
+      [data-baseweb="select"] span {{
+        color:{c['text']} !important;
+      }}
+      
       ul[role="listbox"] {{ background:{c['dialog']} !important; border:1px solid {c['line']} !important; }}
       /* Streamlit's dialog panel has nested wrappers; style the panel and its surface together. */
       [data-testid="stDialog"] [role="dialog"], [data-testid="stDialog"] [role="dialog"] > div, [data-testid="stDialog"] section {{ background:linear-gradient(145deg, {c['dialog']}, {c['surface']}) !important; }}
@@ -295,9 +322,104 @@ def style_base_layout() -> None:
       [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {{ color:{c['muted']} !important; opacity:1 !important; font-weight:600 !important; }}
       [data-testid="stDialog"] [data-testid="stAlert"] *, [data-testid="stDialog"] [data-testid="stAlert"] {{ color:{c['text']} !important; opacity:1 !important; }}
       [data-testid="stFileUploader"], [data-testid="stCameraInput"], [data-testid="stAudioInput"] {{ background:{c['surface']} !important; border:1px dashed {c['line']} !important; border-radius:1rem !important; padding:.7rem !important; }}
-      /* Camera capture/clear actions also live outside Streamlit's standard button wrapper. */
-      [data-testid="stCameraInput"] button {{ background:{c['surface']} !important; color:{c['text']} !important; border:1px solid {c['line']} !important; box-shadow:none !important; }}
-      [data-testid="stCameraInput"] button svg, [data-testid="stCameraInput"] button * {{ color:{c['text']} !important; fill:currentColor !important; opacity:1 !important; }}
+      
+      /* File uploader text visibility */
+      [data-testid="stFileUploader"] label, [data-testid="stFileUploader"] p, [data-testid="stFileUploader"] span, [data-testid="stFileUploader"] small {{
+        color:{c['text']} !important; opacity:1 !important;
+      }}
+      [data-testid="stFileUploader"] button {{ 
+        background:{c['surface']} !important; color:{c['text']} !important; 
+        border:1px solid {c['line']} !important; box-shadow:none !important; 
+      }}
+      [data-testid="stFileUploader"] button svg, [data-testid="stFileUploader"] button * {{ 
+        color:{c['text']} !important; fill:currentColor !important; opacity:1 !important; 
+      }}
+      
+      /* Camera input styling with animated border and enhanced visibility */
+      [data-testid="stCameraInput"] {{ position:relative; }}
+      [data-testid="stCameraInput"] label, [data-testid="stCameraInput"] p, [data-testid="stCameraInput"] span {{
+        color:{c['text']} !important; opacity:1 !important; font-weight:600 !important;
+      }}
+      
+      /* Camera image container with animated border */
+      [data-testid="stCameraInput"] img {{
+        border-radius:.8rem;
+        position:relative;
+        animation: border-pulse 3s ease-in-out infinite;
+      }}
+      @keyframes border-pulse {{
+        0%, 100% {{ box-shadow: 0 0 0 2px {c['btn_primary']}, 0 0 15px 2px rgba(251,191,36,.4); }}
+        50% {{ box-shadow: 0 0 0 3px {c['btn_primary']}, 0 0 25px 4px rgba(251,191,36,.6); }}
+      }}
+      
+      /* Camera capture/clear actions */
+      [data-testid="stCameraInput"] button {{ 
+        background: {c['btn_secondary']} !important;
+        background-size: {c['btn_secondary_size']} !important;
+        background-position: {c['btn_secondary_pos']} !important;
+        color:#ffffff !important;
+        border:none !important; 
+        box-shadow: {c['btn_secondary_glow']} !important;
+        border-radius:.7rem !important;
+        padding:.65rem 1.2rem !important;
+        font-weight:700 !important;
+        font-size:.92rem !important;
+        transition: all .25s ease !important;
+        cursor:pointer !important;
+      }}
+      [data-testid="stCameraInput"] button:hover {{ 
+        background-position: {c['btn_secondary_pos_h']} !important;
+        box-shadow: {c['btn_secondary_glow_h']} !important;
+        transform: translateY(-2px) scale(1.02) !important;
+        filter: brightness(1.08) !important;
+      }}
+      [data-testid="stCameraInput"] button:active {{
+        transform: translateY(0) scale(.98) !important;
+      }}
+      [data-testid="stCameraInput"] button svg, [data-testid="stCameraInput"] button * {{ 
+        color:#ffffff !important; fill:#ffffff !important; opacity:1 !important; 
+      }}
+      
+      /* Image delete/close button visibility */
+      [data-testid="stImage"] button[aria-label*="remove" i],
+      [data-testid="stImage"] button[aria-label*="delete" i],
+      [data-testid="stImage"] button[aria-label*="close" i] {{
+        background:rgba(239,68,68,.95) !important;
+        color:#ffffff !important;
+        border-radius:50% !important;
+        width:2rem !important; height:2rem !important;
+        border:2px solid #ffffff !important;
+        box-shadow:0 2px 12px rgba(0,0,0,.4) !important;
+        opacity:1 !important;
+        transition: all .2s ease !important;
+      }}
+      [data-testid="stImage"] button[aria-label*="remove" i]:hover,
+      [data-testid="stImage"] button[aria-label*="delete" i]:hover,
+      [data-testid="stImage"] button[aria-label*="close" i]:hover {{
+        transform:scale(1.15) !important;
+        background:rgba(220,38,38,1) !important;
+        box-shadow:0 4px 20px rgba(239,68,68,.6) !important;
+      }}
+      [data-testid="stImage"] button svg {{
+        color:#ffffff !important; fill:#ffffff !important; opacity:1 !important;
+      }}
+      
+      /* Markdown expander arrows visibility */
+      [data-testid="stMarkdownContainer"] details summary {{
+        color:{c['text']} !important;
+        font-weight:600 !important;
+      }}
+      [data-testid="stMarkdownContainer"] details summary svg,
+      [data-testid="stMarkdownContainer"] details summary::marker,
+      [data-testid="stMarkdownContainer"] details summary::-webkit-details-marker {{
+        color:{c['text']} !important;
+        opacity:1 !important;
+      }}
+      [data-testid="stMarkdownContainer"] details[open] summary {{
+        border-bottom:1px solid {c['line']} !important;
+        padding-bottom:.5rem !important;
+        margin-bottom:.5rem !important;
+      }}
       [data-testid="stDataFrame"] {{ border:1px solid {c['line']}; border-radius:.9rem; overflow:hidden; }}
       [data-testid="stAlert"] {{ border-radius:.8rem; border:1px solid {c['line']}; }}
       [data-testid="stToast"] {{ background:{c['dialog']} !important; color:{c['text']} !important; border:1px solid {c['line']}; border-radius:.8rem; }}

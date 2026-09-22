@@ -187,7 +187,7 @@ def manage_subjects():
     with col1:
         st.header("Manage Subjects", width='stretch')
     with col2:
-        if st.button("Create New Subject", width='stretch'):
+        if st.button("Create New Subject", type='primary', icon=":material/add_circle:", width='stretch'):
             create_subject_dialog(teach_id)
 
     subjects = get_teacher_subjects(teach_id)
