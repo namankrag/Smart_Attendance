@@ -65,16 +65,26 @@ def teacher_dashboard():
 
 
 def teacher_navigation():
-    """Render a compact, touch-friendly navigation menu in Streamlit's sidebar."""
+    """Render navigation in sidebar + inline tab bar for all screen sizes."""
     tabs = (
-        ("take_attendance", "Take Attendance", ":material/ar_on_you:"),
-        ("manage_subjects", "Manage Subjects", ":material/book_ribbon:"),
+        ("take_attendance",    "Take Attendance",    ":material/ar_on_you:"),
+        ("manage_subjects",    "Manage Subjects",    ":material/book_ribbon:"),
         ("attendance_records", "Attendance Records", ":material/cards_stack:"),
     )
+    data = st.session_state.teacher_data
 
+    # ── Sidebar (always present, visible via the › arrow on mobile) ──
     with st.sidebar:
-        st.markdown("### Teacher menu")
-        st.caption("Choose a workspace")
+        # Brand + welcome
+        st.markdown(
+            f"""<div style="padding:.4rem 0 1rem;">
+              <div style="font-size:1.1rem;font-weight:800;letter-spacing:.03em;">🎓 SmartClass</div>
+              <div style="font-size:.82rem;opacity:.6;margin-top:2px;">Welcome, {data['name']}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+        st.divider()
+        st.caption("NAVIGATION")
         for tab_id, label, icon in tabs:
             if st.button(
                 label,
@@ -85,6 +95,15 @@ def teacher_navigation():
             ):
                 st.session_state.current_teacher_tab = tab_id
                 st.rerun()
+        st.divider()
+        st.caption("ACCOUNT")
+        if st.button("Logout", type="secondary", icon=":material/logout:", width="stretch", key="sidebar_logout"):
+            st.session_state['is_logged_in'] = False
+            del st.session_state.teacher_data
+            st.rerun()
+        theme_toggle("sidebar_teacher")
+
+
 
 
 def take_attendance():

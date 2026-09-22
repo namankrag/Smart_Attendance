@@ -25,8 +25,23 @@ def main():
     st.set_page_config(
         page_title = 'SmartClass - Making Attendance faster using AI',
         page_icon = str(BASE_DIR / "img" / "header.png"),
-        initial_sidebar_state = "expanded",
+        initial_sidebar_state = "collapsed",
     )
+
+    # Minimal CSS — only hide deploy button and menu, make header transparent
+    st.markdown("""
+        <style>
+            [data-testid="stAppDeployButton"] { display: none !important; }
+            #MainMenu { visibility: hidden !important; }
+            footer { visibility: hidden !important; }
+            
+            /* Make header transparent so it adapts to page background */
+            [data-testid="stHeader"] {
+                background: transparent !important;
+                background-color: transparent !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
     if 'login_type' not in st.session_state:
         st.session_state['login_type'] = None

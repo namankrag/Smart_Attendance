@@ -63,40 +63,67 @@ def get_teacher_subjects(teach_id):
 
 @db_retry()
 def enroll_student_to_subject(student_id, subject_id):
-    """Enroll a student and mark every already-held session as absent.
+    """Enroll a student and backfill missing historical sessions as absent.
 
-    A class session is represented by one shared timestamp across its attendance
-    rows. Backfilling a false row makes historic teacher percentages include the
-    newly enrolled student immediately, while preserving the original session.
+    If attendance records already exist (from a previous enrollment), they are
+    preserved. Only creates absent records for sessions the student has no record for.
+    This ensures re-enrollment preserves actual attendance history.
     """
+    # Get all timestamps for this subject
     prior_sessions = (
         supabase.table('attendance_logs')
         .select('timestamp')
         .eq('subject_id', subject_id)
         .execute()
     )
-    timestamps = sorted({row.get('timestamp') for row in prior_sessions.data if row.get('timestamp')})
+    all_timestamps = sorted({row.get('timestamp') for row in prior_sessions.data if row.get('timestamp')})
 
+    # Create the enrollment record
     data = {'student_id': student_id, 'subject_id': subject_id}
     response = supabase.table('subject_students').insert(data).execute()
 
-    if timestamps:
-        historic_absences = [
-            {
-                'student_id': student_id,
-                'subject_id': subject_id,
-                'timestamp': timestamp,
-                'is_present': False,
-            }
-            for timestamp in timestamps
-        ]
-        supabase.table('attendance_logs').insert(historic_absences).execute()
+    if all_timestamps:
+        # Check which timestamps already have records for this student
+        existing_records = (
+            supabase.table('attendance_logs')
+            .select('timestamp')
+            .eq('student_id', student_id)
+            .eq('subject_id', subject_id)
+            .execute()
+        )
+        existing_timestamps = {row.get('timestamp') for row in existing_records.data if row.get('timestamp')}
+        
+        # Only create absent records for timestamps that don't already exist
+        missing_timestamps = [ts for ts in all_timestamps if ts not in existing_timestamps]
+        
+        if missing_timestamps:
+            historic_absences = [
+                {
+                    'student_id': student_id,
+                    'subject_id': subject_id,
+                    'timestamp': timestamp,
+                    'is_present': False,
+                }
+                for timestamp in missing_timestamps
+            ]
+            supabase.table('attendance_logs').insert(historic_absences).execute()
+    
     return response.data
 
 @db_retry()
 def unenroll_student_to_subject(student_id, subject_id):
-    response = supabase.table('subject_students').delete().eq('student_id', student_id).eq('subject_id', subject_id).execute()
-    return response.data
+    """Unenroll a student from a subject.
+    
+    Only removes the enrollment record from subject_students table.
+    Attendance logs are preserved for historical record - they will be filtered
+    out of teacher views but restored if the student re-enrolls.
+    """
+    try:
+        # Delete only the enrollment record, keep attendance history
+        enroll_response = supabase.table('subject_students').delete().eq('student_id', student_id).eq('subject_id', subject_id).execute()
+        return {"success": True, "enrollment_deleted": len(enroll_response.data)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @db_retry()
 def get_student_subjects(student_id):
@@ -119,6 +146,7 @@ def get_student_subjects(student_id):
 
 @db_retry()
 def get_student_attendance(student_id):
+    """Get all attendance records for a student."""
     response = supabase.table('attendance_logs').select('*, subjects(*)').eq('student_id', student_id).execute()
     return response.data
 
@@ -129,52 +157,36 @@ def create_attendance(logs):
 
 @db_retry()
 def get_attendance_for_teacher(teacher_id):
-    """Return teacher records after repairing any legacy enrollment gaps.
+    """Return attendance records filtered to currently-enrolled students only.
 
-    Older enrollments may predate the attendance backfill added to
-    ``enroll_student_to_subject``. Before calculating a teacher's records, add
-    an absent row for every active enrolled student missing from a held session.
-    This keeps each session's total aligned with current enrollment.
+    Only includes attendance logs for students who are actively enrolled in each
+    subject. When a student unenrolls, their historical attendance is hidden from
+    the teacher's view. When they re-enroll, it reappears.
     """
+    # Get all attendance logs for this teacher's subjects
     response = supabase.table('attendance_logs').select('*, subjects!inner(*)').eq('subjects.teacher_id', teacher_id).execute()
     records = response.data
 
-    sessions_by_subject = {}
-    recorded_rows = set()
-    for record in records:
-        subject_id = record.get('subject_id')
-        timestamp = record.get('timestamp')
-        student_id = record.get('student_id')
-        if subject_id is None or timestamp is None:
-            continue
-        sessions_by_subject.setdefault(subject_id, set()).add(timestamp)
-        recorded_rows.add((subject_id, timestamp, student_id))
+    # Get all subjects for this teacher
+    subjects_response = supabase.table('subjects').select('subject_id').eq('teacher_id', teacher_id).execute()
+    subject_ids = [s['subject_id'] for s in subjects_response.data]
+    
+    if not subject_ids:
+        return []
+    
+    # Get currently enrolled students for all these subjects
+    enrolled_response = supabase.table('subject_students').select('student_id, subject_id').in_('subject_id', subject_ids).execute()
+    
+    # Build set of (subject_id, student_id) tuples for currently enrolled students
+    current_enrollments = {(e['subject_id'], e['student_id']) for e in enrolled_response.data}
+    
+    # Filter records to only include currently-enrolled students
+    filtered_records = [
+        record for record in records
+        if (record.get('subject_id'), record.get('student_id')) in current_enrollments
+    ]
 
-    missing_rows = []
-    for subject_id, timestamps in sessions_by_subject.items():
-        enrolled = (
-            supabase.table('subject_students')
-            .select('student_id')
-            .eq('subject_id', subject_id)
-            .execute()
-        )
-        for enrollment in enrolled.data:
-            student_id = enrollment.get('student_id')
-            for timestamp in timestamps:
-                if (subject_id, timestamp, student_id) not in recorded_rows:
-                    missing_rows.append({
-                        'student_id': student_id,
-                        'subject_id': subject_id,
-                        'timestamp': timestamp,
-                        'is_present': False,
-                    })
-
-    if missing_rows:
-        supabase.table('attendance_logs').insert(missing_rows).execute()
-        # Re-read so the caller receives the repaired totals in this same view.
-        response = supabase.table('attendance_logs').select('*, subjects!inner(*)').eq('subjects.teacher_id', teacher_id).execute()
-
-    return response.data
+    return filtered_records
 
 @db_retry()
 def get_session_details(subject_id, timestamp):

@@ -100,8 +100,12 @@ def student_dashboard():
         def unenrolled(bound_sid=sid, bound_sub=sub):
             if st.button("Unenroll from the course", type='primary', width='stretch',
                          icon=":material/delete_forever:", key=f"unenroll_{bound_sid}"):
-                unenroll_student_to_subject(stud_id, bound_sid)
-                st.toast(f"Unenrolled from {bound_sub['name']} successfully!")
+                result = unenroll_student_to_subject(stud_id, bound_sid)
+                if result.get("success"):
+                    st.toast(f"✅ Unenrolled from {bound_sub['name']}! Deleted {result.get('logs_deleted', 0)} attendance records.")
+                else:
+                    st.error(f"Failed to unenroll: {result.get('error')}")
+                time.sleep(1)
                 st.rerun()
 
         with cols[i % 2]:
