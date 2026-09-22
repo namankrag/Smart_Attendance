@@ -17,20 +17,26 @@ def student_dashboard():
     stud_data = st.session_state.student_data
     stud_id = stud_data['student_id']
 
-    c1, c2 = st.columns(2, vertical_alignment='center', gap='xxlarge')
-    with c1:
-        header_dashboard()
-    with c2:
-        st.subheader(f"""Welcome, {stud_data['name']}""")
-        b1, b2 = st.columns(2, vertical_alignment='center')
-        with b1:
-            if st.button("Logout", type='secondary', key='backbtn', width='stretch'):
-                st.session_state.is_logged_in = False
-                st.session_state.camera_active = False
-                del st.session_state.student_data
-                st.rerun()
-        with b2:
-            theme_toggle("student_dash")
+    # Center the header
+    header_dashboard()
+
+    # ── Sidebar navigation ──
+    with st.sidebar:
+        st.markdown(
+            f"""<div style="padding:.4rem 0 1rem;">
+              <div style="font-size:1.1rem;font-weight:800;letter-spacing:.03em;">🎓 SmartClass</div>
+              <div style="font-size:.82rem;opacity:.6;margin-top:2px;">Welcome, {stud_data['name']}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+        st.divider()
+        st.caption("ACCOUNT")
+        if st.button("Logout", type="secondary", icon=":material/logout:", width="stretch", key="sidebar_logout"):
+            st.session_state.is_logged_in = False
+            st.session_state.camera_active = False
+            del st.session_state.student_data
+            st.rerun()
+        theme_toggle("sidebar_student")
 
     st.space()
     c1, c2 = st.columns(2)

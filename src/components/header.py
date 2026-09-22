@@ -64,9 +64,9 @@ def header_dashboard():
     c2_color = "#c084fc" if is_dark else "#a855f7"
 
     st.html(
-        f'<div style="display:flex;align-items:center;justify-content:flex-start;gap:14px;'
+        f'<div style="display:flex;align-items:center;justify-content:center;gap:14px;'
         f'padding:14px 22px;border-radius:20px;background:{bg_style};{border_style}'
-        f'{shadow_style}backdrop-filter:blur(12px);width:fit-content;">'
+        f'{shadow_style}backdrop-filter:blur(12px);width:fit-content;margin:0 auto;">'
         f'<img src="data:image/png;base64,{logo_b64}" style="height:52px;width:auto;'
         f'flex-shrink:0;filter:drop-shadow(0 3px 10px rgba(129,140,248,0.35));" />'
         f'<div style="display:flex;flex-direction:column;line-height:1;gap:2px;">'

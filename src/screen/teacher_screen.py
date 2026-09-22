@@ -34,20 +34,10 @@ def teacher_screen():
 
 def teacher_dashboard():
     data = st.session_state.teacher_data
-    c1, c2 = st.columns(2, vertical_alignment='center', gap='xxlarge')
-    with c1:
-        header_dashboard()
-    with c2:
-        st.subheader(f"""Welcome, {data['name']} """)
-        
-        b1, b2 = st.columns(2, vertical_alignment='center')
-        with b1:
-            if st.button("Logout", type='secondary', key='backbtn', width='stretch'):
-                st.session_state['is_logged_in'] = False
-                del st.session_state.teacher_data
-                st.rerun()
-        with b2:
-            theme_toggle('teacher_dash')
+    
+    # Center the header
+    header_dashboard()
+    
     st.space()
 
     if "current_teacher_tab" not in st.session_state:

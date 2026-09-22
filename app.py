@@ -40,6 +40,36 @@ def main():
                 background: transparent !important;
                 background-color: transparent !important;
             }
+            
+            /* Custom cursor - Light mode (magenta/purple) */
+            * {
+                cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="%23FF00FF" stroke="%23CC00CC" stroke-width="1.5" stroke-linejoin="round"/></svg>'), auto !important;
+            }
+            
+            a, button, [role="button"], input[type="submit"], input[type="button"], [data-testid*="button"] {
+                cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="%23FF66FF" stroke="%23FF00CC" stroke-width="2" stroke-linejoin="round"/></svg>'), pointer !important;
+            }
+            
+            /* Custom cursor - Dark mode (cyan/blue) - overrides light mode when background is dark */
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] *,
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] * {
+                cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="%2300D9FF" stroke="%230099CC" stroke-width="1.5" stroke-linejoin="round"/></svg>'), auto !important;
+            }
+            
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] a,
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] button,
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] [role="button"],
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] input[type="submit"],
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] input[type="button"],
+            [data-testid="stAppViewContainer"][style*="rgb(14, 17, 23)"] [data-testid*="button"],
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] a,
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] button,
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] [role="button"],
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] input[type="submit"],
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] input[type="button"],
+            [data-testid="stAppViewContainer"][style*="rgb(38, 39, 48)"] [data-testid*="button"] {
+                cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="%2300FFFF" stroke="%2300CCFF" stroke-width="2" stroke-linejoin="round"/></svg>'), pointer !important;
+            }
         </style>
     """, unsafe_allow_html=True)
 
