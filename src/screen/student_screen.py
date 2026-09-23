@@ -1,6 +1,5 @@
 import streamlit as st
 from PIL import Image
-import numpy as np
 import time
 
 from src.ui.base_layout import style_base_layout, style_bg_dashboard, is_dark_theme
@@ -43,7 +42,7 @@ def student_dashboard():
     with c1:
         st.header("Your Enrolled Subject!")
     with c2:
-        if st.button("Enroll in subject", type='primary', width='stretch'):
+        if st.button("Enroll in subject", type='primary', width='stretch', icon=":material/add_circle:"):
             enroll_dilog()
 
     st.divider()
@@ -227,7 +226,7 @@ def student_screen():
         photo_src = st.camera_input("Position your face in the center")
 
     if photo_src:
-        img = np.array(Image.open(photo_src).convert("RGB"))
+        img = Image.open(photo_src).convert("RGB")
         with st.spinner("AI is scanning..."):
             detected, all_ids, num_faces = predict_attendance(img)
 
@@ -266,7 +265,7 @@ def student_screen():
             if st.button("Create Account", type='primary'):
                 if new_name:
                     with st.spinner("Creating Profile..."):
-                        img = np.array(Image.open(photo_src).convert("RGB"))
+                        img = Image.open(photo_src).convert("RGB")
                         encodings = get_face_embeddings(img)
                         if encodings:
                             face_emb = encodings[0].tolist()

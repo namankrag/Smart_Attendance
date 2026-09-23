@@ -1,7 +1,6 @@
 import dlib
 import numpy as np
 import importlib.resources as pkg_res
-from sklearn.svm import SVC
 import streamlit as st
 from PIL import Image as PILImage
 

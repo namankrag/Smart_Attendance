@@ -40,12 +40,3 @@ def dialog_banner(title: str, subtitle: str = "", theme: str = "purple"):
             {sub_html}
         </div>
     """, unsafe_allow_html=True)
-
-
-def styled_badge(text: str, color: str = "#667eea") -> str:
-    """Return an inline HTML badge span."""
-    return (
-        f'<span style="background:{color}22; color:{color}; '
-        f'padding:3px 12px; border-radius:20px; font-weight:600; '
-        f'font-size:0.88rem; border:1px solid {color}44;">{text}</span>'
-    )
