@@ -2,6 +2,11 @@
 
 > Making attendance faster using AI.
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://smartclass-main.streamlit.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-smartclass--main.streamlit.app-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://smartclass-main.streamlit.app/)
+
+🚀 **Live App:** [https://smartclass-main.streamlit.app/](https://smartclass-main.streamlit.app/)
+
 SmartClass is a web-based attendance management system built with **Python** and **Streamlit**. It replaces manual roll calls with AI-driven **face recognition** and **voice recognition**, protects face login with **passive anti-spoofing**, and lets students join classes instantly through **QR codes / join links**. Teachers and students each get their own dashboard, and all data is stored in a **Supabase** backend.
 
 ---
@@ -231,7 +236,7 @@ The app opens at **http://localhost:8501**.
 
 ### Join Link Format
 ```
-https://<your-app-url>/?join-code=<CLASS_CODE>
+https://smartclass-main.streamlit.app/?join-code=<CLASS_CODE>
 ```
 
 ---
