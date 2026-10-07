@@ -26,18 +26,21 @@ def identify_speaker(new_embedding, candidate_dict, threshold = 0.65):
     if new_embedding is None or not candidate_dict:
         return None, 0.0
 
-    best_sid = None
-    best_score = -1.0
+    valid_candidates = [(sid, emb) for sid, emb in candidate_dict.items() if emb]
+    if not valid_candidates:
+        return None, 0.0
 
-    for sid, stored_embedding in candidate_dict.items():
-        if stored_embedding:
-            similarity = np.dot(new_embedding, stored_embedding)
-            if similarity > best_score:
-                best_score = similarity
-                best_sid = sid
+    sids, embeddings = zip(*valid_candidates)
+    emb_matrix = np.array(embeddings, dtype=np.float32)  # (N_candidates, 256)
+    new_vec = np.array(new_embedding, dtype=np.float32)
+
+    # Vectorized cosine similarity dot product in one matrix operation
+    similarities = np.dot(emb_matrix, new_vec)
+    best_idx = int(np.argmax(similarities))
+    best_score = float(similarities[best_idx])
 
     if best_score >= threshold:
-        return best_sid, best_score
+        return sids[best_idx], best_score
 
     return None, best_score
 

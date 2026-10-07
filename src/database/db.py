@@ -1,5 +1,5 @@
 from src.database.config import supabase, db_retry
-import bcrypt
+import bcrypt  # -> to securely save the password
 
 def hash_pass(pwd):
     return bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
@@ -34,9 +34,31 @@ def get_all_students():
 
 @db_retry()
 def create_student(new_name, face_embedding = None, voice_embedding = None):
+    # Ensure face_embedding is formatted properly
     data = {'name' : new_name, 'face_embedding' : face_embedding, 'voice_embedding' : voice_embedding}
     response = supabase.table('students').insert(data).execute()
     return response.data
+
+@db_retry()
+def add_student_face_embedding(student_id, new_embedding):
+    """Append an extra face embedding (e.g. with/without glasses or different lighting) to student profile."""
+    response = supabase.table('students').select('face_embedding').eq('student_id', student_id).execute()
+    if not response.data:
+        return None
+
+    current_emb = response.data[0].get('face_embedding')
+    all_embeddings = []
+
+    if current_emb:
+        if isinstance(current_emb, list):
+            if len(current_emb) > 0 and isinstance(current_emb[0], (int, float)):
+                all_embeddings.append(current_emb)
+            elif len(current_emb) > 0 and isinstance(current_emb[0], list):
+                all_embeddings.extend(current_emb)
+
+    all_embeddings.append(new_embedding)
+    update_resp = supabase.table('students').update({'face_embedding': all_embeddings}).eq('student_id', student_id).execute()
+    return update_resp.data
 
 @db_retry()
 def create_subject(sub_code, name, sec, teach_id):

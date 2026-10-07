@@ -7,10 +7,34 @@ from src.components.header import header_dashboard, theme_toggle
 from src.components.footer import footer_dashboard
 from src.pipelines.face_pipeline import predict_attendance, get_face_embeddings, train_classifier
 from src.pipelines.voice_pipeline import get_voice_embedding
-from src.database.db import get_all_students, create_student, get_student_subjects, get_student_attendance, unenroll_student_to_subject
+from src.database.db import get_all_students, create_student, get_student_subjects, get_student_attendance, unenroll_student_to_subject, add_student_face_embedding
 from src.components.dialog_enroll import enroll_dilog
 from src.components.subject_card import subject_card
 from src.components.dialog_student_attendance import student_attendance_history
+
+@st.dialog("📸 Add Face Scan", width="medium")
+def add_face_scan_dialog(student_id):
+    st.markdown("### Update Your Face Profile")
+    st.caption("Add an additional face scan (e.g. without specs, with specs, or different lighting) so FaceID recognizes you seamlessly in all conditions.")
+    cam_scan = st.camera_input("Capture face snapshot", key="add_face_scan_cam")
+    if cam_scan:
+        img = Image.open(cam_scan).convert("RGB")
+        with st.spinner("Analyzing face features..."):
+            encodings = get_face_embeddings(img, num_jitters=5, is_single_face=True)
+            if not encodings:
+                st.error("No face detected in photo. Please ensure good lighting and face the camera directly.")
+            elif len(encodings) > 1:
+                st.warning("Multiple faces detected! Please ensure only you are in the frame.")
+            else:
+                new_emb = encodings[0].tolist()
+                res = add_student_face_embedding(student_id, new_emb)
+                if res:
+                    train_classifier()
+                    st.toast("✅ Extra face scan saved! Your profile now recognizes both looks.")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Failed to update profile.")
 
 def student_dashboard():
     stud_data = st.session_state.student_data
@@ -28,6 +52,11 @@ def student_dashboard():
             </div>""",
             unsafe_allow_html=True,
         )
+        st.divider()
+        st.caption("FACE ID SETTINGS")
+        if st.button("Add Extra Face Scan", type="primary", icon=":material/face:", width="stretch", key="btn_add_face_scan"):
+            add_face_scan_dialog(stud_id)
+
         st.divider()
         st.caption("ACCOUNT")
         if st.button("Logout", type="secondary", icon=":material/logout:", width="stretch", key="sidebar_logout"):
@@ -227,8 +256,9 @@ def student_screen():
 
     if photo_src:
         img = Image.open(photo_src).convert("RGB")
-        with st.spinner("AI is scanning..."):
-            detected, all_ids, num_faces = predict_attendance(img)
+        with st.spinner("AI is scanning full facial features..."):
+            # Fast-path (is_single_face=True) + strict threshold (0.43) + num_jitters=3 for instant & accurate login
+            detected, all_ids, num_faces = predict_attendance(img, distance_threshold=0.43, num_jitters=3, is_single_face=True)
 
             if detected:
                 stud_id = list(detected.keys())[0]
@@ -264,9 +294,10 @@ def student_screen():
 
             if st.button("Create Account", type='primary'):
                 if new_name:
-                    with st.spinner("Creating Profile..."):
+                    with st.spinner("Analyzing and registering full face structure..."):
                         img = Image.open(photo_src).convert("RGB")
-                        encodings = get_face_embeddings(img)
+                        # Use num_jitters=5 for high-precision baseline embedding
+                        encodings = get_face_embeddings(img, num_jitters=5, is_single_face=True)
                         if encodings:
                             face_emb = encodings[0].tolist()
                             voice_emb = None
