@@ -110,8 +110,10 @@ def style_base_layout() -> None:
     st.html(f"""
     <style>
       @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
-      #MainMenu, footer {{ visibility:hidden; }}
+      #MainMenu, footer {{ visibility:hidden !important; }}
       [data-testid="stAppDeployButton"] {{ display:none !important; }}
+      [data-testid="stHeader"] {{ background: transparent !important; background-color: transparent !important; }}
+      [data-testid="stDecoration"] {{ display: none !important; }}
       
       html, body, [class*="css"] {{ font-family:'DM Sans',sans-serif; }}
       .block-container {{ max-width:1180px; padding-top:2rem; padding-bottom:2.5rem; }}

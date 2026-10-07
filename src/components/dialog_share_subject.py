@@ -6,7 +6,7 @@ from src.ui.base_layout import is_dark_theme
 import base64
 
 @st.dialog("Share Class Link", width="large")
-def share_subject(sub_name, sub_code):
+def share_subject(sub_name: str, sub_code: str):
     dialog_banner(
         "Share Class Link",
         subtitle=f"Invite students to join {sub_name}",
@@ -14,45 +14,52 @@ def share_subject(sub_name, sub_code):
     )
     dark = is_dark_theme()
 
-    app_dom = "smartclass-main.streamlit.app"
-    join_url = f"{app_dom}/?join-code={sub_code}"
+    # Determine base domain dynamically if available, otherwise default
+    base_url = "https://smartclass-main.streamlit.app"
+    try:
+        # Check if custom base url is specified in secrets
+        if "APP_URL" in st.secrets:
+            base_url = st.secrets["APP_URL"].rstrip("/")
+    except Exception:
+        pass
 
-    # ── Coloured QR code ────────────────────────────────────────────
-    qr = segno.make(join_url, error='h')
+    join_url = f"{base_url}/?join-code={sub_code}"
+
+    # ── Coloured QR code ──
+    qr = segno.make(join_url, error="h")
     out = io.BytesIO()
     
     if dark:
         qr.save(
             out,
-            kind='png',
+            kind="png",
             scale=12,
             border=2,
-            dark='#818cf8',        # module colour  – glowing indigo
-            light='#0f172a',       # background     – deep slate
-            data_dark='#c084fc',   # data modules   – vibrant purple
+            dark="#818cf8",
+            light="#0f172a",
+            data_dark="#c084fc",
         )
     else:
         qr.save(
             out,
-            kind='png',
+            kind="png",
             scale=12,
             border=2,
-            dark='#5144d3',        # module colour  – deep indigo
-            light='#f0f0ff',       # background     – soft lavender
-            data_dark='#a855f7',   # data modules   – vibrant purple
+            dark="#5144d3",
+            light="#f0f0ff",
+            data_dark="#a855f7",
         )
 
-    col1, col2 = st.columns([1.1, 1], gap='medium')
+    col1, col2 = st.columns([1.1, 1], gap="medium")
 
     link_title_col = "#818cf8" if dark else "#5144d3"
     code_title_col = "#c084fc" if dark else "#a855f7"
     box_bg = "linear-gradient(135deg, #312e81 0%, #1e1b4b 100%)" if dark else "linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)"
     box_border = "#818cf8" if dark else "#667eea"
     box_text_col = "#c7d2fe" if dark else "#4338ca"
-    scan_sub_col = "#94a3b8" if dark else "#94a3b8"
+    scan_sub_col = "#94a3b8"
 
     with col1:
-        # ── Link section ────────────────────────────────────────────
         st.markdown(f"""
             <p style="
                 font-family: Outfit, sans-serif;
@@ -91,7 +98,7 @@ def share_subject(sub_name, sub_code):
                 color: {box_text_col};
                 font-weight: 500;
             ">
-                💬 Share this link or code on <b>WhatsApp</b>, <b>Email</b>, or any platform!
+                💬 Share this link or code via <b>WhatsApp</b>, <b>Email</b>, or LMS!
             </div>
         """, unsafe_allow_html=True)
 
@@ -109,7 +116,6 @@ def share_subject(sub_name, sub_code):
             ">📱 Scan to Join</p>
         """, unsafe_allow_html=True)
 
-        # Glow wrapper around the QR
         qr_b64 = base64.b64encode(out.getvalue()).decode()
         st.markdown(f"""
             <div style="

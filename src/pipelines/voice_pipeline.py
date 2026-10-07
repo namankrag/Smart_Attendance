@@ -1,41 +1,59 @@
+from typing import Dict, Tuple, Optional, Any
+import io
 import librosa
 import numpy as np
-import io
 import streamlit as st
 from resemblyzer import VoiceEncoder, preprocess_wav
 
-@st.cache_resource
-def load_voice_encoder():
+@st.cache_resource(show_spinner=False)
+def load_voice_encoder() -> VoiceEncoder:
+    """Load and cache pre-trained speaker embedding network."""
     return VoiceEncoder()
 
+def _normalize(v: np.ndarray) -> np.ndarray:
+    """L2-normalize an embedding vector for true cosine dot product."""
+    norm = np.linalg.norm(v)
+    return v / (norm + 1e-10)
 
-def get_voice_embedding(audio_bytes):
+def get_voice_embedding(audio_bytes: Optional[bytes]) -> Optional[list]:
+    """Generate normalized 256-D voice embedding from raw audio bytes."""
+    if not audio_bytes:
+        return None
     try:
         encoder = load_voice_encoder()
-        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000)
+        audio, _ = librosa.load(io.BytesIO(audio_bytes), sr=16000)
         wav = preprocess_wav(audio)
         embedding = encoder.embed_utterance(wav)
-        return embedding.tolist()
-
-    except Exception as e:
-        st.error("Voice recognition error")
+        normalized = _normalize(embedding)
+        return normalized.tolist()
+    except Exception as exc:
+        st.warning(f"Voice feature extraction note: {exc}")
         return None
 
-
-def identify_speaker(new_embedding, candidate_dict, threshold = 0.65):
-    if new_embedding is None or not candidate_dict:
+def identify_speaker(
+    new_embedding: Optional[list], 
+    candidate_dict: Dict[int, list], 
+    threshold: float = 0.65
+) -> Tuple[Optional[int], float]:
+    """
+    Match query speaker embedding against candidate dictionary via normalized cosine similarity.
+    Returns: (matched_student_id, confidence_score)
+    """
+    if not new_embedding or not candidate_dict:
         return None, 0.0
 
-    valid_candidates = [(sid, emb) for sid, emb in candidate_dict.items() if emb]
+    valid_candidates = [(sid, emb) for sid, emb in candidate_dict.items() if emb and len(emb) == 256]
     if not valid_candidates:
         return None, 0.0
 
     sids, embeddings = zip(*valid_candidates)
-    emb_matrix = np.array(embeddings, dtype=np.float32)  # (N_candidates, 256)
-    new_vec = np.array(new_embedding, dtype=np.float32)
+    
+    # Ensure all vectors are L2-normalized
+    emb_matrix = np.array([_normalize(np.array(e, dtype=np.float32)) for e in embeddings], dtype=np.float32)
+    query_vec = _normalize(np.array(new_embedding, dtype=np.float32))
 
-    # Vectorized cosine similarity dot product in one matrix operation
-    similarities = np.dot(emb_matrix, new_vec)
+    # Vectorized cosine similarity dot product
+    similarities = np.dot(emb_matrix, query_vec)
     best_idx = int(np.argmax(similarities))
     best_score = float(similarities[best_idx])
 
@@ -44,26 +62,39 @@ def identify_speaker(new_embedding, candidate_dict, threshold = 0.65):
 
     return None, best_score
 
+def process_bulk_audio(
+    audio_bytes: Optional[bytes], 
+    candidate_dict: Dict[int, list], 
+    threshold: float = 0.65
+) -> Dict[int, float]:
+    """
+    Segment classroom speech audio and identify all present speakers.
+    Returns mapping: student_id -> highest_confidence_score
+    """
+    if not audio_bytes:
+        return {}
 
-def process_bulk_audio(audio_bytes, candidate_dict, threshold = 0.65):
     try:
         encoder = load_voice_encoder()
-        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr = 16000)
-        segments = librosa.effects.split(audio, top_db=30)
-        identified_result = {}
+        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000)
+        segments = librosa.effects.split(audio, top_db=28)
+        identified_results: Dict[int, float] = {}
 
         for start, end in segments:
-            if (end-start) < sr * 0.5:
+            # Skip noise blips shorter than 0.4s
+            if (end - start) < (sr * 0.4):
                 continue
             segment_audio = audio[start:end]
             wav = preprocess_wav(segment_audio)
             embedding = encoder.embed_utterance(wav)
+            norm_emb = _normalize(embedding).tolist()
 
-            sid, score = identify_speaker(embedding, candidate_dict, threshold)
+            sid, score = identify_speaker(norm_emb, candidate_dict, threshold=threshold)
             if sid:
-                if sid not in identified_result or score > identified_result[sid]:
-                    identified_result[sid] = score
-        return identified_result
-    except Exception as e:
-        st.error(f"Bulk Process Error: {e}")
+                if sid not in identified_results or score > identified_results[sid]:
+                    identified_results[sid] = score
+
+        return identified_results
+    except Exception as exc:
+        st.error(f"Bulk voice recognition failure: {exc}")
         return {}

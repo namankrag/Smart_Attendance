@@ -1,15 +1,14 @@
-"""Timestamped attendance history shown from a student's subject card."""
+"""Timestamped attendance history displayed from student subject cards."""
 
 from datetime import datetime
-
+from typing import List, Dict, Any
 import streamlit as st
 
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-
-def _format_timestamp(value) -> str:
-    """Return a friendly local-looking display without failing on legacy values."""
+def _format_timestamp(value: Any) -> str:
+    """Format ISO timestamp into a clean localized presentation string."""
     if not value:
         return "Time not recorded"
     try:
@@ -18,14 +17,13 @@ def _format_timestamp(value) -> str:
     except (TypeError, ValueError):
         return str(value)
 
-
-@st.dialog("Attendance history", width="medium")
-def student_attendance_history(subject_name: str, logs: list[dict], status: str) -> None:
-    """Show the attended or absent sessions for one student and one subject."""
+@st.dialog("Attendance History", width="medium")
+def student_attendance_history(subject_name: str, logs: List[Dict[str, Any]], status: str) -> None:
+    """Render attended or absent session timeline for a student and subject."""
     present = status == "present"
     theme = "teal" if present else "pink"
-    label = "Attended classes" if present else "Missed classes"
-    dialog_banner(label, f"{subject_name} • class-by-class history", theme=theme)
+    label = "Attended Classes" if present else "Missed Classes"
+    dialog_banner(label, f"{subject_name} • Session Breakdown", theme=theme)
 
     filtered = [log for log in logs if bool(log.get("is_present")) == present]
     filtered.sort(key=lambda log: str(log.get("timestamp") or ""), reverse=True)
@@ -37,7 +35,7 @@ def student_attendance_history(subject_name: str, logs: list[dict], status: str)
     muted = "#d3deec" if dark else "#40566f"
 
     if not filtered:
-        st.info(f"No {status} class records are available for this subject yet.")
+        st.info(f"No {status} class records logged for this subject yet.")
         return
 
     st.html(

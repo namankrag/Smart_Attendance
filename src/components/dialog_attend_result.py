@@ -1,9 +1,10 @@
 import streamlit as st
+from datetime import datetime
 from src.database.db import create_attendance
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
-def show_attendance(df, logs):
+def show_attendance(df, logs, subject_name: str = ""):
     present = sum(1 for l in logs if l.get('is_present'))
     total   = len(logs)
     pct     = int(present / total * 100) if total else 0
@@ -84,14 +85,14 @@ def show_attendance(df, logs):
             font-size: 0.88rem;
             color: {lbl_col};
             margin-bottom: 6px;
-        ">Review before confirming — this cannot be undone.</p>
+        ">Review student status before confirming. Once saved, records will be logged into session history.</p>
     """, unsafe_allow_html=True)
 
     st.dataframe(df, hide_index=True, width='stretch')
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button('🗑️  Discard', width='stretch'):
+        if st.button('🗑️  Discard & Close', width='stretch'):
             st.session_state.voice_attendance_results = []
             st.session_state.attendance_images = []
             st.rerun()
@@ -99,15 +100,21 @@ def show_attendance(df, logs):
         if st.button("✅  Save and Confirm", type='primary', width='stretch'):
             try:
                 create_attendance(logs)
-                st.toast("✅ Attendance saved!", icon="🎉")
+                st.session_state.last_saved_attendance = {
+                    "subject_name": subject_name,
+                    "present": present,
+                    "total": total,
+                    "time": datetime.now().strftime("%I:%M %p")
+                }
                 st.session_state.attendance_images = []
                 st.session_state.voice_attendance_results = None
+                st.toast("✅ Attendance saved successfully!", icon="🎉")
                 st.rerun()
-            except Exception:
-                st.error("❌ Sync failed — please try again.")
-
+            except Exception as e:
+                st.error(f"❌ Sync failed: {e}")
 
 @st.dialog("Attendance Report", width="large")
-def attend_result(df, logs):
-    dialog_banner("Attendance Report", subtitle="Review before saving", theme="teal")
-    show_attendance(df, logs)
+def attend_result(df, logs, subject_name: str = ""):
+    sub_title = f"Review before saving • {subject_name}" if subject_name else "Review before saving"
+    dialog_banner("Attendance Report", subtitle=sub_title, theme="teal")
+    show_attendance(df, logs, subject_name)
