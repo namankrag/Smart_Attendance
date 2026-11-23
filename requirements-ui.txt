@@ -1,0 +1,22 @@
+# Smart Attendance — UI-only dependencies (Phase 2, light image).
+# Python 3.11. This is what Dockerfile.ui installs: Streamlit + data
+# access + auth, and NO torch / dlib / onnxruntime / pyannote /
+# resemblyzer / librosa. All ML runs in the worker image.
+# The legacy dlib/resemblyzer stack lives in requirements.txt (local
+# dev / transition) until the worker cutover removes the last in-process
+# pipeline imports from the UI.
+streamlit>=1.39,<2
+
+# Utilities
+numpy>=1.26,<2
+pandas>=2.1,<3
+setuptools>=68
+scipy>=1.11,<2
+httpx>=0.27,<1
+
+supabase>=2.0,<3
+# Argon2id for PIN/password hashes (OWASP Password Storage Cheat Sheet).
+argon2-cffi>=23.1,<24
+
+segno>=1.6,<2
+pillow>=10.0,<11

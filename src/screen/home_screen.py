@@ -4,6 +4,7 @@ from pathlib import Path
 from src.components.header import header_home
 from src.components.footer import footer_home
 from src.ui.base_layout import style_base_layout, style_bg_home, is_dark_theme
+from src.ui.images import image_file
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -22,8 +23,16 @@ def home_screen():
 
     stud_title_col = "#5eead4" if dark else "#0f766e"
     teach_title_col = "#a5b4fc" if dark else "#4f46e5"
-    student_card = "linear-gradient(145deg, rgba(15,118,110,.24), rgba(15,23,42,.20))" if dark else "linear-gradient(145deg, #ffffff, #f0fdfa)"
-    teacher_card = "linear-gradient(145deg, rgba(79,70,229,.25), rgba(15,23,42,.20))" if dark else "linear-gradient(145deg, #ffffff, #eef2ff)"
+    student_card = (
+        "linear-gradient(145deg, rgba(15,118,110,.24), rgba(15,23,42,.20))"
+        if dark
+        else "linear-gradient(145deg, #ffffff, #f0fdfa)"
+    )
+    teacher_card = (
+        "linear-gradient(145deg, rgba(79,70,229,.25), rgba(15,23,42,.20))"
+        if dark
+        else "linear-gradient(145deg, #ffffff, #eef2ff)"
+    )
     card_text = "#b8c8dc" if dark else "#52647a"
 
     # ── Portal cards ────────────────────────────────────────────
@@ -42,11 +51,20 @@ def home_screen():
                 <p style="margin:0;color:{card_text};"></p></div>""")
             image_col, action_col = st.columns([1, 1.35], vertical_alignment="center")
             with image_col:
-                st.image(student_img, width=130)
+                # Phase 1: a missing image renders nothing, never a crash.
+                _student_img = image_file(student_img)
+                if _student_img is not None:
+                    st.image(_student_img, width=130)
             with action_col:
                 st.caption("PERSONAL ATTENDANCE HUB")
                 st.markdown("Use Face ID to sign in securely and view your subjects in one place.")
-                if st.button('Open Student Portal', type='primary', icon=":material/arrow_outward:", icon_position="right", width="stretch"):
+                if st.button(
+                    "Open Student Portal",
+                    type="primary",
+                    icon=":material/arrow_outward:",
+                    icon_position="right",
+                    width="stretch",
+                ):
                     st.session_state["login_type"] = "student"
                     st.rerun()
 
@@ -58,12 +76,22 @@ def home_screen():
                 <p style="margin:0;color:{card_text};"></p></div>""")
             image_col, action_col = st.columns([1, 1.35], vertical_alignment="center")
             with image_col:
-                st.image(teacher_img, width=130)
+                _teacher_img = image_file(teacher_img)
+                if _teacher_img is not None:
+                    st.image(_teacher_img, width=130)
             with action_col:
                 st.caption("CLASSROOM COMMAND CENTER")
-                st.markdown("Create subjects, capture attendance, and review sessions with less effort.")
-                if st.button('Open Teacher Portal', type='primary', icon=':material/arrow_outward:', icon_position="right", width="stretch"):
-                    st.session_state['login_type'] = 'teacher'
+                st.markdown(
+                    "Create subjects, capture attendance, and review sessions with less effort."
+                )
+                if st.button(
+                    "Open Teacher Portal",
+                    type="primary",
+                    icon=":material/arrow_outward:",
+                    icon_position="right",
+                    width="stretch",
+                ):
+                    st.session_state["login_type"] = "teacher"
                     st.rerun()
 
     footer_home()

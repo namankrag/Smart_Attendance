@@ -1,0 +1,13 @@
+# Smart Attendance — Streamlit server configuration.
+# Phase 3 (audit 44): XSRF and CORS protection stay ON. Never set
+# enableXsrfProtection or enableCORS to false — the dev container
+# used to disable both, which removes Streamlit's CSRF defence and
+# lets any website drive the app. The explicit `true` values below
+# exist so a future edit has to deliberately turn them off.
+[server]
+enableXsrfProtection = true
+enableCORS = true
+# Uploads are photos/audio for attendance jobs; 200 MB is the
+# Streamlit default ceiling and is kept (the worker enforces its own
+# smaller max-payload limit).
+maxUploadSize = 200

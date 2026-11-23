@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+# Smart Attendance — ML worker image (Phase 2).
+# Multi-stage: build stage installs the heavy ML stack; the final stage
+# carries the FastAPI worker + model weights baked in. No runtime
+# downloads: weights must be present in worker/models/ at build time —
+# the build FAILS if any is missing, and /readyz reports 503 without them.
+# Python 3.11 target.
+FROM python:3.11-slim AS worker
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MODEL_DIR=/models
+
+# ffmpeg is required by pyannote.audio (audio decoding).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY worker/requirements.txt ./worker-requirements.txt
+RUN pip install --no-cache-dir -r worker-requirements.txt
+
+# Model weights, baked in at build time (see worker/models/README.md).
+# The build fails loudly if the directory is empty/missing a file —
+# a worker image without weights must never be built by accident.
+COPY worker/models/ /models/
+RUN ls /models/scrfd_10g_bnkps.onnx /models/arcface_r100.onnx \
+       /models/minifasnet.onnx /models/aasist.onnx
+
+COPY worker ./worker
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=4)"
+
+CMD ["uvicorn", "worker.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
