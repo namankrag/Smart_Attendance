@@ -1,36 +1,89 @@
+"""Quick enrollment from a join-code deep link (?join-code=...).
+
+Enrols by the separate, URL-safe join_code — never by subject_code.
+The code is URL-decoded and format-validated before any lookup, and all
+lookups go through ``src.database.db`` (no direct Supabase calls).
+
+Phase 2.1: the ``?join-code`` query param is cleared as soon as this
+dialog opens (audit 31) so the code does not linger in the URL or
+re-trigger on refresh; validation (including expiry for v1 codes)
+lives in ``src/ui/join_codes.py``.
+"""
+
+import html
+
 import streamlit as st
-import time
+
 from src.database.db import enroll_student_to_subject
-from src.database.config import supabase
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
+from src.ui.join_codes import validate_join_code as _validate_join_code_v2
+
+try:
+    from src.database.db import get_subject_by_join_code, is_student_enrolled
+except ImportError:  # pragma: no cover - db agent has not landed yet
+    get_subject_by_join_code = None  # type: ignore[assignment]
+    is_student_enrolled = None  # type: ignore[assignment]
+
+
+def validate_join_code(raw: str) -> str | None:
+    """URL-decode and validate a join code. Returns the clean code or None.
+
+    Delegates to ``src.ui.join_codes`` (time-limited v1 codes + legacy
+    bare-token codes); kept here so existing imports keep working.
+    """
+    return _validate_join_code_v2(raw)
+
 
 @st.dialog("Quick Enrollment", width="medium")
-def auto_enroll(sub_code: str):
+def auto_enroll(join_code: str):
+    # Phase 2.1 (audit 31): clear ?join-code as soon as the dialog
+    # opens — before any lookup — so the code never lingers in the URL.
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
     stud_id = st.session_state.student_data["student_id"]
-    clean_code = sub_code.strip().upper()
-    res = supabase.table("subjects").select("subject_id, name").eq("subject_code", clean_code).limit(1).execute()
+    clean_code = validate_join_code(join_code or "")
     dark = is_dark_theme()
 
-    if not res.data:
-        dialog_banner("Not Found", subtitle="This subject code does not exist", theme="pink")
-        st.error("❌ Subject code not found!")
+    if not clean_code or get_subject_by_join_code is None:
+        dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
+        st.error("❌ Join code not found!")
         if st.button("Close", key="btn_close_not_found"):
             st.query_params.clear()
             st.rerun()
         return
 
-    subject = res.data[0]
-    chk = (
-        supabase.table("subject_students")
-        .select("id")
-        .eq("subject_id", subject["subject_id"])
-        .eq("student_id", stud_id)
-        .execute()
-    )
+    try:
+        subject = get_subject_by_join_code(clean_code)
+    except Exception:
+        dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
+        st.error("❌ Join code not found!")
+        if st.button("Close", key="btn_close_not_found"):
+            st.query_params.clear()
+            st.rerun()
+        return
 
-    if chk.data:
-        dialog_banner("Already Enrolled", subtitle=subject["name"], theme="teal")
+    if not subject:
+        dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
+        st.error("❌ Join code not found!")
+        if st.button("Close", key="btn_close_not_found"):
+            st.query_params.clear()
+            st.rerun()
+        return
+
+    try:
+        already = (
+            is_student_enrolled(stud_id, subject["subject_id"])
+            if is_student_enrolled is not None
+            else False
+        )
+    except Exception:
+        already = False
+
+    if already:
+        dialog_banner("Already Enrolled", subtitle=str(subject.get("name", "")), theme="teal")
         st.info("✅ You are already enrolled in this subject!")
         if st.button("Got it!", key="btn_got_it"):
             st.query_params.clear()
@@ -39,11 +92,16 @@ def auto_enroll(sub_code: str):
 
     dialog_banner("Quick Enrollment", subtitle="You received a class invitation", theme="purple")
 
-    card_bg = "linear-gradient(135deg, #312e81, #1e1b4b)" if dark else "linear-gradient(135deg, #ede9fe, #e0e7ff)"
+    card_bg = (
+        "linear-gradient(135deg, #312e81, #1e1b4b)"
+        if dark
+        else "linear-gradient(135deg, #ede9fe, #e0e7ff)"
+    )
     sub_title_col = "#a5b4fc" if dark else "#5144d3"
     sub_text_col = "#cbd5e1" if dark else "#64748b"
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="
             background: {card_bg};
             border-radius: 16px;
@@ -58,7 +116,7 @@ def auto_enroll(sub_code: str):
                 font-weight: 700;
                 color: {sub_title_col};
                 margin: 8px 0 4px;
-            ">{subject['name']}</p>
+            ">{html.escape(str(subject.get("name", "")))}</p>
             <p style="
                 font-family: Outfit, sans-serif;
                 font-size: 0.88rem;
@@ -66,7 +124,9 @@ def auto_enroll(sub_code: str):
                 margin: 0;
             ">Would you like to join this class?</p>
         </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -74,9 +134,14 @@ def auto_enroll(sub_code: str):
             st.query_params.clear()
             st.rerun()
     with col2:
-        if st.button("🚀  Yes, Enroll!", type="primary", width="stretch", key="btn_auto_enroll_confirm"):
-            enroll_student_to_subject(stud_id, subject["subject_id"])
+        if st.button(
+            "🚀  Yes, Enroll!", type="primary", width="stretch", key="btn_auto_enroll_confirm"
+        ):
+            try:
+                enroll_student_to_subject(stud_id, subject["subject_id"])
+            except Exception:
+                st.error("Could not enroll you. Please try again.")
+                return
             st.success("🎉 Joined successfully!")
             st.query_params.clear()
-            time.sleep(1)
             st.rerun()

@@ -1,21 +1,25 @@
 """Timestamped attendance history displayed from student subject cards."""
 
-from datetime import datetime
 from typing import List, Dict, Any
 import streamlit as st
 
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
+from src.database.timeutil import parse_iso_timestamp
+
 
 def _format_timestamp(value: Any) -> str:
-    """Format ISO timestamp into a clean localized presentation string."""
+    """Format ISO timestamp into a clean localized presentation string.
+
+    Phase 1: uses the shared parser, which never raises on bad input.
+    """
     if not value:
         return "Time not recorded"
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return parsed.strftime("%d %b %Y • %I:%M %p")
-    except (TypeError, ValueError):
+    parsed = parse_iso_timestamp(value)
+    if parsed is None:
         return str(value)
+    return parsed.strftime("%d %b %Y • %I:%M %p")
+
 
 @st.dialog("Attendance History", width="medium")
 def student_attendance_history(subject_name: str, logs: List[Dict[str, Any]], status: str) -> None:
@@ -29,7 +33,15 @@ def student_attendance_history(subject_name: str, logs: List[Dict[str, Any]], st
     filtered.sort(key=lambda log: str(log.get("timestamp") or ""), reverse=True)
 
     dark = is_dark_theme()
-    accent = "#5eead4" if present and dark else "#0f766e" if present else "#fda4af" if dark else "#e11d48"
+    accent = (
+        "#5eead4"
+        if present and dark
+        else "#0f766e"
+        if present
+        else "#fda4af"
+        if dark
+        else "#e11d48"
+    )
     surface = "#17253a" if dark else "#f8fafc"
     border = "#294058" if dark else "#dbe5f0"
     muted = "#d3deec" if dark else "#40566f"
@@ -40,15 +52,19 @@ def student_attendance_history(subject_name: str, logs: List[Dict[str, Any]], st
 
     st.html(
         f'<p style="color:{muted};font-size:.93rem;font-weight:700;margin:0 0 10px;">'
-        f'{len(filtered)} {status} session{"s" if len(filtered) != 1 else ""}</p>'
+        f"{len(filtered)} {status} session{'s' if len(filtered) != 1 else ''}</p>"
     )
     for index, log in enumerate(filtered, start=1):
         timestamp = _format_timestamp(log.get("timestamp"))
         st.html(
-            f'<div style="display:flex;align-items:center;gap:13px;background:{surface};border:1px solid {border};'
+            f'<div style="display:flex;align-items:center;gap:13px;background:{surface};border:1px '
+                f'solid {border};'
             f'border-left:4px solid {accent};border-radius:12px;padding:13px 15px;margin:8px 0;">'
-            f'<div style="width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:{accent}20;color:{accent};font-weight:800;">{index}</div>'
-            f'<div><div style="color:{accent};font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;">'
-            f'{"Present" if present else "Absent"}</div>'
-            f'<div style="color:{muted};font-size:.94rem;margin-top:2px;">{timestamp}</div></div></div>'
+            f'<div style="width:30px;height:30px;display:grid;place-items:center;border-radius:50%;'
+                f'background:{accent}20;color:{accent};font-weight:800;">{index}</div>'
+            f'<div><div style="color:{accent};font-size:.78rem;font-weight:800;text-transform:upper'
+                f'case;letter-spacing:.07em;">'
+            f"{'Present' if present else 'Absent'}</div>"
+            f'<div style="color:{muted};font-size:.94rem;margin-top:2px;">{timestamp}</div></div></'
+                f'div>'
         )

@@ -1,0 +1,63 @@
+# Smart Attendance — tool configuration (Phase 3 CI).
+# Python 3.11 target (pyproject requires-python); the local dev venv is
+# 3.12, so CI runs on 3.11 to match the deployment target.
+
+[project]
+name = "smart-attendance"
+version = "0.3.0"
+description = "Smart Attendance / SmartClass — classroom attendance with face and voice biometrics"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# B: bugbear, S: bandit (via ruff), F/E/W: pyflakes/pycodestyle.
+# Security rules are also covered by the separate bandit job in CI.
+select = ["E", "F", "W", "B", "S"]
+ignore = [
+    # S110 (try-except-pass) is used deliberately for best-effort audit
+    # logging (privacy.py / vector.py): logging must never break matching.
+    "S110",
+    # Tests use assert liberally by design.
+    "S101",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101", "S110"]
+# E501 (ruff cleanup 2026-11-22): the remaining long lines in these files
+# are inside triple-quoted HTML/CSS string literals (Streamlit markup and
+# the embedded stylesheet). They cannot be wrapped without changing the
+# string value, and every line where a safe implicit-concatenation split
+# was possible has already been split. New code should still keep lines
+# <= 100 chars; these ignores cover legacy string content only.
+"src/ui/base_layout.py" = ["E501"]
+"src/screen/home_screen.py" = ["E501"]
+"src/screen/student_screen.py" = ["E501"]
+"src/screen/teacher_screen.py" = ["E501"]
+"src/components/dialog_share_subject.py" = ["E501"]
+"src/components/dialog_attend_result.py" = ["E501"]
+"src/components/dialog_add_photo.py" = ["E501"]
+# S105 (ruff cleanup 2026-11-22): false positives on session/token *key
+# names* ("SUPABASE_ACCESS_TOKEN_KEY", "cookie_secret", "client_secret")
+# in files owned by other in-flight work; the flagged values are key
+# names / dummy test values, not hardcoded passwords. Config-level
+# ignore so the files themselves stay untouched.
+"src/database/auth_session.py" = ["S105"]
+"tests/test_oidc_secrets_example.py" = ["S105"]
+
+[tool.mypy]
+python_version = "3.11"
+# The codebase is only partially typed; CI runs mypy in non-strict mode
+# so new code is checked without failing on the legacy untyped modules.
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_return_any = false
+
+[tool.bandit]
+# Bandit runs as its own CI job (see .github/workflows/ci.yml).
+# Skips: B101 (assert in tests is fine), B110/B112 (try-except-pass /
+# continue are deliberate in audit + retry code).
+skips = ["B101", "B110", "B112"]

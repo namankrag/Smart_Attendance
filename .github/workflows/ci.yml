@@ -1,0 +1,54 @@
+# Smart Attendance — CI (Phase 3).
+# Runs on every push / pull request: lint (ruff), type check (mypy),
+# security scan (bandit), dependency audit (pip-audit), and the full
+# pytest suite. Python 3.11 is the deployment target (the local dev
+# venv is 3.12); CI pins 3.11 so a 3.11-only break is caught here.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ui.txt
+          pip install ruff mypy bandit pip-audit pytest
+          # Worker deps are needed only for the worker tests; the heavy
+          # ML stack (torch/pyannote) is installed from worker/requirements.txt
+          # without the model weights (tests mock the pipelines).
+          pip install -r worker/requirements.txt || echo "worker deps skipped"
+
+      - name: Ruff (lint)
+        run: ruff check src worker scripts tests
+
+      - name: Mypy (type check, non-strict)
+        # The codebase is only partially typed; this step is advisory
+        # until the legacy modules are annotated (see pyproject.toml).
+        continue-on-error: true
+        run: mypy src
+
+      - name: Bandit (security scan)
+        run: bandit -r src worker -c pyproject.toml
+
+      - name: pip-audit (known vulnerabilities in dependencies)
+        run: pip-audit -r requirements-ui.txt
+
+      - name: Pytest
+        env:
+          NO_PROXY: ""
+          no_proxy: ""
+        run: python -m pytest tests -q

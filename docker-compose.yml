@@ -1,0 +1,57 @@
+# Smart Attendance — UI + ML worker (Phase 2).
+# Not a deployment: no image is pushed or hosted by this file; run it
+# locally with `docker compose up --build`. The deployment decision
+# (Streamlit Cloud vs container; Cloud Run vs Render for the worker)
+# still needs Naman.
+#
+# Secrets are passed via environment (worker only) — see worker/README.md.
+# Never commit real values: use a local .env file (gitignored) or your
+# host's secret store. HF_TOKEN and SUPABASE_SERVICE_ROLE_KEY must never
+# appear in the UI service's environment.
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "8501:8501"
+    environment:
+      # The UI reaches the worker by service name inside the compose network.
+      ML_WORKER_URL: http://worker:8000
+      # SUPABASE_URL / SUPABASE_ANON_KEY come from your .env (anon key only).
+    env_file:
+      - .env
+    depends_on:
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_DIR: /models
+      FACE_BACKEND: onnx
+      # DATABASE_URL: empty → in-memory job store (dev only). Set a
+      # Postgres DSN for the real FOR UPDATE SKIP LOCKED queue.
+      # DATABASE_URL: ${DATABASE_URL:-}
+      # SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / HF_TOKEN: worker env
+      # only — set them in the host environment or .env (never in git).
+    env_file:
+      - .env
+    healthcheck:
+      # /healthz = liveness; /readyz (model files + store) is the
+      # readiness gate the UI's worker client can also poll.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

@@ -1,0 +1,18 @@
+# ML worker dependencies (Phase 2). Python 3.11.
+# The Streamlit UI image (Dockerfile.ui) must NOT install these.
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
+# Postgres driver for the FOR UPDATE SKIP LOCKED queue.
+psycopg[binary]>=3.1,<4
+supabase>=2.0,<3
+numpy>=1.26,<2
+scipy>=1.11,<2
+pillow>=10.0,<11
+# ONNX Runtime for SCRFD / ArcFace-AdaFace / MiniFASNet-CDCN / AASIST.
+onnxruntime>=1.17,<2
+# ECAPA-TDNN (SpeechBrain) + pyannote diarization. Needs ffmpeg in the
+# image (see Dockerfile.worker) and HF_TOKEN in the worker env only.
+torch>=2.2,<3
+speechbrain>=1.0,<2
+pyannote.audio>=3.1,<4
+librosa>=0.10,<0.11

@@ -6,6 +6,12 @@
 __pycache__/
 
 .attend/
-.streamlit/
+# .streamlit/ is ignored, except the checked-in config and examples
+# (Phase 3): the real secrets.toml must never be committed, but the
+# example + config are part of the repo. Negating files inside an
+# ignored directory needs the directory itself un-ignored first.
+.streamlit/*
+!.streamlit/config.toml
+!.streamlit/secrets.toml.example
 
 dist/
