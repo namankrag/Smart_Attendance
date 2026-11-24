@@ -1,11 +1,10 @@
 """Database access layer for Smart Attendance (Phase 0 rewrite).
 
 Security invariants (each enforced below, with a cited source in comments):
-- IDs are UUID strings (``student_id`` / ``teacher_id`` / ``subject_id`` /
-  ``session_id`` / log ``id``), never sequential ints. Sequential IDs are
-  enumerable; UUIDs are not a substitute for authorisation, but they remove
-  the trivial enumeration vector. Authorisation is enforced by the
-  ownership checks in this module, not by ID secrecy.
+- Student, teacher, subject and session IDs are UUID strings. The existing
+  ``attendance_logs.id`` primary key is a BIGINT; log IDs are never used as
+  authorization. Ownership is enforced by checks in this module, not by ID
+  secrecy.
 - No ``SELECT *`` anywhere in this module. Every query names its columns,
   so a credential hash (``teachers.password`` / ``students.pin_hash``) is
   only fetched by the one login function that needs it, and is never
@@ -42,7 +41,7 @@ or column below does not exist, Supabase raises and the error propagates
 - ``subject_students(id, student_id FK, subject_id FK)``
 - ``attendance_sessions(session_id UUID PK, subject_id FK, teacher_id FK,
   method, created_at)``
-- ``attendance_logs(id UUID PK, session_id FK, student_id FK, subject_id FK,
+- ``attendance_logs(id BIGINT PK, session_id FK, student_id FK, subject_id FK,
   timestamp, is_present)`` with
   ``UNIQUE (session_id, student_id)`` (required by
   :func:`create_attendance_upsert`'s ``on_conflict``).
@@ -52,9 +51,11 @@ or column below does not exist, Supabase raises and the error propagates
 from __future__ import annotations
 
 import math
+import re
 import secrets
 import warnings
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from uuid import UUID
 
 from src.database.auth import (
     hash_password,
@@ -163,6 +164,19 @@ def _require_id(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} must be a non-empty UUID string")
     return value.strip()
+
+
+def _require_attendance_log_id(value: Any) -> str | int:
+    """Accept the live BIGINT log key and UUID/string keys from old installs."""
+    if isinstance(value, bool):
+        raise ValueError("log_id must be a positive integer or non-empty string")
+    if isinstance(value, int):
+        if value < 1:
+            raise ValueError("log_id must be a positive integer")
+        return value
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    raise ValueError("log_id must be a positive integer or non-empty string")
 
 
 # ==========================================
@@ -283,7 +297,8 @@ def get_student_for_login(student_id_or_usn: str) -> Optional[Dict[str, Any]]:
     This is the ONLY student fetch that returns ``pin_hash``. It selects
     exactly ``student_id, usn, name, pin_hash, face_embedding,
     voice_embedding`` -- no other columns, no SELECT *. Accepts either a
-    UUID ``student_id`` or a ``usn`` (USN is tried first). Callers must
+    UUID ``student_id`` or a ``usn`` (USN is tried first). Provisional
+    ``LEGACY-<id>`` USNs also accept spaces around the hyphen. Callers must
     verify the PIN with ``auth.verify_credential`` and enforce rate
     limiting via ``rate_limit.check_login_allowed`` / ``record_login_attempt``;
     a row returned here is NOT an authenticated session.
@@ -291,11 +306,29 @@ def get_student_for_login(student_id_or_usn: str) -> Optional[Dict[str, Any]]:
     if not isinstance(student_id_or_usn, str) or not student_id_or_usn.strip():
         return None
     value = student_id_or_usn.strip()
-    response = supabase.table("students").select(_LOGIN_COLUMNS).eq("usn", value).limit(1).execute()
-    if response.data:
-        return response.data[0]
+    legacy_match = re.fullmatch(r"LEGACY\s*-\s*(\d+)", value, flags=re.IGNORECASE)
+    if legacy_match:
+        value = f"LEGACY-{legacy_match.group(1)}"
+    try:
+        usn = validate_usn(value)
+    except ValueError:
+        usn = None
+    if usn is not None:
+        response = (
+            supabase.table("students").select(_LOGIN_COLUMNS).eq("usn", usn).limit(1).execute()
+        )
+        if response.data:
+            return response.data[0]
+    try:
+        student_id = str(UUID(value))
+    except ValueError:
+        return None
     response = (
-        supabase.table("students").select(_LOGIN_COLUMNS).eq("student_id", value).limit(1).execute()
+        supabase.table("students")
+        .select(_LOGIN_COLUMNS)
+        .eq("student_id", student_id)
+        .limit(1)
+        .execute()
     )
     return response.data[0] if response.data else None
 
@@ -764,7 +797,7 @@ def get_student_attendance(
         supabase.table("attendance_logs")
         .select(
             "id, session_id, student_id, subject_id, timestamp, is_present, "
-            "subjects(subject_id, subject_code, name)"
+            "subjects(subject_id, subject_code, name), attendance_sessions(started_at)"
         )
         .eq("student_id", student_id)
         .range(offset, offset + limit - 1)
@@ -891,9 +924,9 @@ def _verify_subject_owner(subject_id: str, teacher_id: str) -> None:
 
 
 @db_retry_read()
-def _subject_id_for_log(log_id: str) -> str:
+def _subject_id_for_log(log_id: str | int) -> str:
     """Return the subject_id of an attendance log, or raise ValueError."""
-    log_id = _require_id(log_id, "log_id")
+    log_id = _require_attendance_log_id(log_id)
     response = (
         supabase.table("attendance_logs")
         .select("id, session_id, subject_id")
@@ -935,7 +968,7 @@ def get_session_details(
 
 @db_retry_write
 def update_attendance_status(
-    log_id: str, is_present: bool, *, teacher_id: str
+    log_id: str | int, is_present: bool, *, teacher_id: str
 ) -> List[Dict[str, Any]]:
     """Update one attendance log -- only if its subject belongs to the teacher.
 

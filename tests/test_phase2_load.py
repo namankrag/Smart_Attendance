@@ -22,7 +22,7 @@ LOCUSTFILE = Path(REPO) / "tests/load/locustfile.py"
 
 def test_locustfile_exists_and_parses():
     assert LOCUSTFILE.is_file()
-    tree = ast.parse(LOCUSTFILE.read_text())
+    tree = ast.parse(LOCUSTFILE.read_text(encoding="utf-8"))
     names = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -36,7 +36,7 @@ def test_locustfile_exists_and_parses():
 
 
 def test_locustfile_documents_50_users_and_no_live_benchmark():
-    text = LOCUSTFILE.read_text()
+    text = LOCUSTFILE.read_text(encoding="utf-8")
     assert "50" in text
     assert "p50" in text and "p95" in text and "p99" in text
     assert "No live benchmark was run" in text
@@ -46,7 +46,7 @@ def test_locustfile_tiny_jpeg_is_a_real_jpeg():
     # Extract the embedded base64 payload and decode it: the load test
     # must submit a real (if tiny) JPEG, not a corrupt blob.
     ns: dict = {}
-    src = LOCUSTFILE.read_text()
+    src = LOCUSTFILE.read_text(encoding="utf-8")
     # Only the constant definition + helper, without importing locust.
     start = src.index("_TINY_JPEG_B64")
     end = src.index("def _tiny_jpeg_b64")

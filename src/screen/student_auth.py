@@ -143,10 +143,7 @@ def _record_login_attempt(identifier: str, success: bool, kind: str) -> None:
     if record_login_attempt is None:
         logger.warning("record_login_attempt is unavailable; attempt not recorded")
         return
-    try:
-        record_login_attempt(identifier, success, kind=kind)
-    except TypeError:
-        record_login_attempt(identifier, success)
+    record_login_attempt(identifier, kind=kind, success=success)
 
 
 def _validate_pin(pin: str) -> Tuple[bool, Optional[str]]:
@@ -209,14 +206,17 @@ def _verify_face_1to1(
     if fn is None:
         logger.error("No 1:1 face verification function is available; refusing face login")
         return False, None
+    kwargs = {
+        "distance_threshold": 0.38,
+        "num_jitters": 2,
+        "is_single_face": True,
+    }
+    # Reuse the profile already fetched for this login attempt. This keeps
+    # verification scoped to the exact claimed row and avoids a second DB read.
+    if "face_embedding" in student:
+        kwargs["gallery_embeddings"] = student.get("face_embedding")
     try:
-        result = fn(
-            img,
-            student_id,
-            distance_threshold=0.38,
-            num_jitters=2,
-            is_single_face=True,
-        )
+        result = fn(img, student_id, **kwargs)
     except TypeError:
         result = fn(img, student_id)
     if isinstance(result, bool):

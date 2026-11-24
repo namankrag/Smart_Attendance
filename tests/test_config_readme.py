@@ -45,7 +45,16 @@ def test_schema_guard_fails_loudly_on_pinless_students(monkeypatch, fake_db):
 
 def test_readme_has_no_unsupported_pad_claim():
     readme = pathlib.Path(__file__).parent.parent / "README.md"
-    text = readme.read_text()
+    text = readme.read_text(encoding="utf-8")
     assert "printed photos are strictly rejected" not in text.lower()
     assert "strictly rejected" not in text.lower()
     assert "Honest Threat Model" in text or "honest threat" in text.lower()
+
+
+@pytest.mark.parametrize("requirements_file", ["requirements.txt", "requirements-ui.txt"])
+def test_pyarrow_stays_compatible_with_numpy_1(requirements_file):
+    requirements = pathlib.Path(__file__).parent.parent / requirements_file
+    text = requirements.read_text(encoding="utf-8")
+
+    assert "numpy>=1.26,<2" in text
+    assert "pyarrow>=16,<26" in text

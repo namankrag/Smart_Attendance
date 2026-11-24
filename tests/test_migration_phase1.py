@@ -10,7 +10,7 @@ MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "004_phase1_pgv
 
 
 def _sql():
-    return MIGRATION.read_text()
+    return MIGRATION.read_text(encoding="utf-8")
 
 
 def _code_lines():

@@ -67,7 +67,7 @@ def test_format_iso_timestamp_never_raises():
 
 
 def test_student_screen_uses_shared_parser():
-    src = (REPO / "src" / "screen" / "student_screen.py").read_text()
+    src = (REPO / "src" / "screen" / "student_screen.py").read_text(encoding="utf-8")
     assert "from src.database.timeutil import parse_iso_timestamp" in src
     assert "datetime.fromisoformat(str(value)" not in src
 
@@ -333,6 +333,29 @@ def test_pin_login_rate_limit_failure_fails_closed(monkeypatch):
     assert errors == [ss.GENERIC_LOGIN_ERROR]
 
 
+def test_face_login_uses_claimed_students_gallery(monkeypatch):
+    """Face login compares against the row already fetched for this ID."""
+    from PIL import Image
+    import src.screen.student_auth as auth
+
+    gallery = [[0.25] * 128]
+    calls = {}
+
+    def fake_predict(image, student_id, **kwargs):
+        calls.update(student_id=student_id, **kwargs)
+        return {"matched": True, "num_faces": 1}
+
+    monkeypatch.setattr(auth, "predict_one_to_one", fake_predict)
+    matched, num_faces = auth._verify_face_1to1(
+        Image.new("RGB", (8, 8)),
+        {"student_id": "student-1", "face_embedding": gallery},
+    )
+
+    assert (matched, num_faces) == (True, 1)
+    assert calls["student_id"] == "student-1"
+    assert calls["gallery_embeddings"] is gallery
+
+
 # ---------------------------------------------------------------------------
 # Voice embedding helper (carry-over b)
 # ---------------------------------------------------------------------------
@@ -503,7 +526,7 @@ def test_gallery_scoped_to_roster_with_per_student_invalidation(monkeypatch):
 
 
 def test_no_five_minute_cache_data_gallery():
-    src = (REPO / "src" / "pipelines" / "face_pipeline.py").read_text()
+    src = (REPO / "src" / "pipelines" / "face_pipeline.py").read_text(encoding="utf-8")
     # The old decorator line (exact) must be gone; prose may still
     # mention the old caching approach for context.
     assert "@st.cache_data(ttl=300, show_spinner=False)" not in src
@@ -593,7 +616,7 @@ def test_dialog_banner_escapes_user_text(monkeypatch):
 
 
 def test_no_raw_exception_detail_shown_in_ui():
-    src = (REPO / "src" / "components" / "dialog_attend_result.py").read_text()
+    src = (REPO / "src" / "components" / "dialog_attend_result.py").read_text(encoding="utf-8")
     assert 'st.error(f"❌ Sync failed: {e}")' not in src
     assert "Could not save attendance" in src
 
@@ -604,4 +627,4 @@ def test_screens_escape_dynamic_names():
         "src/screen/student_screen.py",
         "src/components/dialog_session_detail.py",
     ):
-        assert "html.escape(" in (REPO / rel).read_text(), rel
+        assert "html.escape(" in (REPO / rel).read_text(encoding="utf-8"), rel

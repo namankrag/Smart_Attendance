@@ -210,14 +210,13 @@ Functional checks on the fresh copy (dummy data, local only):
   logs = 38 — all-or-nothing confirmed. Stub and teacher row were
   reset afterwards.
 
-## Behaviour note (not a defect): `enrolled_at` vs historical sessions
-- 001 sets `subject_students.enrolled_at` to the migration time for
-  existing enrolments. All historical sessions predate that, so
-  `v_attendance_percentages` reports `total_classes = 0` /
-  `attendance_pct = NULL` for existing students (per the audit-27
-  rule: absences count only sessions on/after enrolment). Live, after
-  004, existing students will show 0%/NULL until new sessions occur.
-  Expected per spec; flagging so it is not mistaken for data loss.
+## Historical `enrolled_at` backfill
+- Migration 001 initially set `subject_students.enrolled_at` to migration
+  time for pre-existing enrollments. This caused sessions recorded before
+  migration 001 to be excluded from student totals by the audit-27 rule.
+- Migration 006 repairs these rows using each student's first linked
+  attendance session. Enrollments without attendance logs keep their
+  existing timestamp.
 
 ## Tests
 - New: `tests/test_migration_004_005_preflight.py` — 7 tests

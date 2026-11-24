@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
-# Smart Attendance — light Streamlit UI image (Phase 2).
-# Contains NO torch / dlib / onnxruntime / pyannote: all ML runs in the
-# worker image (Dockerfile.worker). Python 3.11 target.
+# Smart Attendance — Streamlit UI image (Python 3.11).
+# dlib is included for the active 128-D face enrollment/matching flow.
+# Heavier voice models and the not-yet-integrated 512-D ONNX pipeline
+# remain in the separate worker image (Dockerfile.worker).
 FROM python:3.11-slim AS ui
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -10,13 +11,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# requirements-ui.txt is the UI dependency set: streamlit, supabase,
-# argon2-cffi, scipy, httpx, pillow — no ML libraries. (The legacy
-# dlib/resemblyzer lines below are the pre-Phase-2 stack, kept for
-# local dev / transition; the UI image build uses requirements-ui.txt
-# and must not install them. The legacy pipeline modules import dlib /
-# resemblyzer defensively, so the UI boots without them and legacy
-# in-process ML calls fail loudly until the worker cutover.)
+# requirements-ui.txt includes the dlib face backend and its model
+# package so face registration, login, and classroom attendance all use
+# the same 128-D templates.
 COPY requirements-ui.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 

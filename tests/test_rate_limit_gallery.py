@@ -54,6 +54,21 @@ def test_rate_limit_allows_under_five_failures(fake_db):
     assert allowed is True
 
 
+def test_student_auth_records_login_attempt_with_current_signature(monkeypatch):
+    from src.screen import student_auth
+
+    attempts = []
+    monkeypatch.setattr(
+        student_auth,
+        "record_login_attempt",
+        lambda identifier, kind, success: attempts.append((identifier, kind, success)),
+    )
+
+    student_auth._record_login_attempt("1MS21CS001", False, "pin")
+
+    assert attempts == [("1MS21CS001", "pin", False)]
+
+
 def test_rate_limit_locks_out_after_five_and_expands(monkeypatch, fake_db):
     now = datetime(2026, 11, 22, 12, 0, tzinfo=timezone.utc)
     # Seed failures with explicit timestamps (fake client stores them).

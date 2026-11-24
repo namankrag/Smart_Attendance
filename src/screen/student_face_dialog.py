@@ -116,7 +116,7 @@ def add_face_scan_dialog(student_id: Any):
         with st.spinner("Analyzing biometric features..."):
             is_live, liveness_msg = validate_liveness(img)
             if not is_live:
-                st.error(f"🛡️ Anti-Spoofing Alert: {liveness_msg}")
+                st.error(f"Liveness check: {liveness_msg}")
                 st.caption(LIVENESS_NOTE)
             else:
                 encodings = get_face_embeddings(img, num_jitters=3, is_single_face=True)

@@ -17,7 +17,7 @@ MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "001_phase0_cor
 
 
 def _sql():
-    return MIGRATION.read_text()
+    return MIGRATION.read_text(encoding="utf-8")
 
 
 def _code_lines():
@@ -109,7 +109,7 @@ def test_rls_policies_use_security_definer_helpers_not_recursive_exists_42p17():
     mig3 = Path(__file__).resolve().parents[1] / "migrations" / "003_fix_rls_recursion.sql"
     assert mig3.exists()
     for path in (mig1, mig3):
-        sql = path.read_text()
+        sql = path.read_text(encoding="utf-8")
         assert "security definer" in sql
         assert "teacher_owns_subject" in sql
         assert "student_enrolled_in_subject" in sql

@@ -50,8 +50,14 @@ from src.database.auth import hash_pin, validate_pin, verify_credential  # noqa:
 
 def _prompt_pin() -> str:
     """Prompt twice for a PIN; return it only if both entries match."""
-    first = getpass.getpass("Enter new 4-6 digit PIN (hidden): ")
-    second = getpass.getpass("Re-enter PIN to confirm (hidden): ")
+    def read_pin(prompt: str) -> str:
+        if sys.stdin.isatty():
+            return getpass.getpass(prompt)
+        print(prompt, file=sys.stderr, end="", flush=True)
+        return sys.stdin.readline().rstrip("\r\n")
+
+    first = read_pin("Enter new 4-6 digit PIN (hidden): ")
+    second = read_pin("Re-enter PIN to confirm (hidden): ")
     if first != second:
         raise ValueError("PINs did not match — nothing was generated. Run again.")
     return validate_pin(first)

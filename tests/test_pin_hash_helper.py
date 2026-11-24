@@ -19,10 +19,11 @@ HASH_RE = re.compile(r"\$argon2id\$[^\s'\";]+")
 
 def _run(usn: str, stdin: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603  # fixed argv: own interpreter + repo script; no shell
-        [sys.executable, str(SCRIPT), "--usn", usn],
+        [sys.executable, "-X", "utf8", str(SCRIPT), "--usn", usn],
         input=stdin,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=60,
         shell=False,

@@ -31,12 +31,12 @@ MIG005 = MIGRATIONS / "005_phase3_privacy.sql"
 
 
 def _sql(path):
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def _code_lines(path):
     return [
-        line for line in path.read_text().splitlines()
+        line for line in path.read_text(encoding="utf-8").splitlines()
         if not line.lstrip().startswith("--")
     ]
 

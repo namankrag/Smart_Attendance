@@ -10,6 +10,7 @@ streamlit>=1.39,<2
 
 # Utilities
 numpy>=1.26,<2
+pyarrow>=16,<26  # PyArrow 26 requires NumPy 2.x; the legacy ML stack stays on NumPy 1.x.
 pandas>=2.1,<3
 setuptools>=68
 scipy>=1.11,<2

@@ -14,8 +14,8 @@ ONNX inference out of the Streamlit process entirely.)
 
 Liveness honesty
 ----------------
-``validate_liveness`` is a **heuristic only**. It looks for glare,
-Moiré / screen texture and device bezels. It does **NOT** reliably block
+``validate_liveness`` is a **heuristic only**. It looks for glare and
+Moiré / screen texture. It does **NOT** reliably block
 printed photos or video replays, and must never be described as doing
 so. Phase 2 replaces it with a real presentation-attack-detection (PAD)
 model — MiniFASNet / CDCN (https://arxiv.org/abs/2106.14948) —
@@ -32,15 +32,13 @@ before it is trusted for any high-stakes decision.
 from PIL import Image as PILImage
 from scipy.spatial.distance import cdist
 
-# Phase 2: dlib is a legacy dependency. The light UI image
-# (Dockerfile.ui / requirements-ui.txt) does NOT install it, so this
-# import is defensive: the module must still import (the UI boots),
-# and any legacy in-process dlib call fails loudly via
-# load_dlib_models() instead of crashing at import time. The ONNX
-# worker (worker/face_onnx.py) is the default path; see that module.
+# dlib is the active face backend while students are enrolled with
+# 128-D templates in students.face_embedding. Keep this import defensive
+# so unrelated UI screens still load if a deployment missed the face
+# dependencies; recognition then reports a clear setup error.
 try:
     import dlib
-except ImportError:  # pragma: no cover - light UI image has no dlib
+except ImportError:  # pragma: no cover - optional for non-face screens
     dlib = None  # type: ignore[assignment]
 import importlib.resources as pkg_res
 import logging
@@ -89,15 +87,13 @@ def load_dlib_models():
     ``_DLIB_LOCK``. ``@st.cache_resource`` still applies, so the models
     are loaded once per process.
 
-    Phase 2: raises ``RuntimeError`` (loudly) when dlib is not
-    installed — the light UI image has no dlib, and the ONNX worker is
-    the default path. Never silently returns a stub.
+    Raises ``RuntimeError`` (loudly) when dlib is not installed. Never
+    silently returns a stub.
     """
     if dlib is None:
         raise RuntimeError(
-            "Legacy dlib face models are not installed in this image. "
-            "Use the Phase 2 ML worker (POST /jobs) or install the "
-            "legacy stack from requirements.txt for local dev."
+            "dlib face models are not installed. Install the UI "
+            "dependencies from requirements-ui.txt before using face recognition."
         )
     with _DLIB_LOCK:
         detector = dlib.get_frontal_face_detector()
@@ -268,10 +264,9 @@ def validate_liveness(image_input: Any) -> Tuple[bool, str]:
     """
     HEURISTIC-ONLY passive liveness screening — NOT presentation-attack detection.
 
-    Inspects a captured face for a few digital presentation-attack
-    indicators: specular backlight / glass reflection, Fourier
-    frequency-energy distribution (digital subpixel Moiré grid), and
-    chrominance realism. These are weak signals: this check does NOT
+    Inspects a captured face for weak presentation-attack indicators:
+    specular backlight / glass reflection and Fourier frequency-energy
+    distribution (digital subpixel Moiré grid). These are weak signals: this check does NOT
     reliably block printed photos or video replays, and a "pass" is not
     proof that a live person is in front of the camera. Phase 2 will
     replace it with a real PAD model (MiniFASNet / CDCN,
@@ -314,32 +309,13 @@ def validate_liveness(image_input: Any) -> Tuple[bool, str]:
     if face_crop.shape[0] < 40 or face_crop.shape[1] < 40:
         return False, "Face too small or too far from camera"
 
-    # 1. Device Bezel / Phone Screen Border Detection
-    # When a phone/tablet is held in front of a camera, the surrounding region contains
-    # a dark physical device bezel and holding fingers (> 20% dark pixels).
-    fw = x2 - x1
-    fh = y2 - y1
-    bx1 = max(0, x1 - int(fw * 0.4))
-    by1 = max(0, y1 - int(fh * 0.3))
-    bx2 = min(w, x2 + int(fw * 0.4))
-    by2 = min(h, y2 + int(fh * 0.3))
-
-    surround = img_arr[by1:by2, bx1:bx2]
-    dark_bezel_ratio = float(np.mean(np.max(surround, axis=2) < 40))
-
-    if dark_bezel_ratio > 0.20:
-        return (
-            False,
-            "Heuristic flag: possible digital device bezel / phone screen frame (not conclusive)",
-        )
-
-    # 2. Specular Glare & Backlight Saturation Check
+    # 1. Specular Glare & Backlight Saturation Check
     gray = np.dot(face_crop[..., :3], [0.2989, 0.5870, 0.1140])
     overexposed_ratio = float(np.mean(gray >= 252))
     if overexposed_ratio > 0.08:
         return False, "Heuristic flag: possible screen glare or glass reflection (not conclusive)"
 
-    # 3. Fourier Frequency Moiré Pattern Analysis (Calibrated for indoor webcams)
+    # 2. Fourier Frequency Moiré Pattern Analysis (Calibrated for indoor webcams)
     crop_resized = np.array(
         PILImage.fromarray(face_crop).resize((128, 128)).convert("L"), dtype=np.float32
     )

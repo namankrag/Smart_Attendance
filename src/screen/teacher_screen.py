@@ -62,18 +62,9 @@ from src.database.timeutil import format_iso_timestamp
 from src.components.dialog_create_subject import create_subject_dialog
 from src.components.subject_card import subject_card
 from src.components.dialog_share_subject import share_subject
-from src.components.dialog_add_photo import add_photos_dialog, staged_image_bytes
+from src.components.dialog_add_photo import add_photos_dialog
 from src.pipelines.face_pipeline import predict_attendance_batch
-from src.screen.teacher_jobs import (
-    present_attendance_result,
-    render_completed_worker_job,
-    submit_face_jobs,
-)
-from src.ui.fragments import (
-    PENDING_JOB_KEY,
-    poll_pending_jobs_fragment,
-)
-from src.ui.worker_client import WorkerError, get_worker_client
+from src.screen.teacher_jobs import present_attendance_result
 from src.components.dialog_voice_attend import voice_attendance
 from src.components.dialog_delete_subject import confirm_delete_subject
 from src.components.dialog_session_detail import session_detail_dialog
@@ -298,17 +289,6 @@ def take_attendance():
 
     selected_sub_id = sub_opts[selected_label]
 
-    # Phase 2: a worker job that just finished renders its result dialog.
-    render_completed_worker_job(selected_sub_id, selected_label)
-    # Phase 2: while worker jobs are pending, poll them from a fragment
-    # (fragment reruns only itself; the page does not fully rerun).
-    if st.session_state.get(PENDING_JOB_KEY):
-        _worker_client = get_worker_client()
-        if _worker_client is not None:
-            poll_pending_jobs_fragment(_worker_client)
-        else:
-            st.session_state.pop(PENDING_JOB_KEY, None)
-
     if st.session_state.attendance_images:
         with st.container(border=True):
             st.caption(
@@ -402,53 +382,35 @@ def take_attendance():
                                     sid = stud.get("student_id")
                                     if sid is not None:
                                         enrolled_sids.append(sid)
-                                # Phase 2: prefer the ML worker when it is
-                                # configured — submit one job per staged
-                                # photo and poll from a fragment. Any worker
-                                # failure falls back to the legacy in-process
-                                # pipeline below (logged, never silent).
-                                _submitted_to_worker = False
-                                _worker_client = get_worker_client()
-                                _staged_bytes = staged_image_bytes()
-                                if _worker_client is not None and _staged_bytes:
-                                    try:
-                                        _job_ids = submit_face_jobs(
-                                            _worker_client,
-                                            _staged_bytes,
-                                            selected_sub_id,
-                                            enrolled_sids,
+                                # Students are enrolled with the legacy
+                                # 128-D dlib model in students.face_embedding.
+                                # The ONNX worker expects 512-D templates from
+                                # face_embeddings, which this app does not yet
+                                # create. Keep matching on the same model and
+                                # stored templates as the working main branch.
+                                try:
+                                    all_detected_ids = predict_attendance_batch(
+                                        st.session_state.attendance_images,
+                                        candidate_ids=enrolled_sids,
+                                        distance_threshold=0.38,
+                                    )
+                                except Exception:
+                                    logger.exception("Face attendance analysis failed")
+                                    st.error("Could not analyze the photos. Please try again.")
+                                    all_detected_ids = None
+                                if all_detected_ids is not None:
+                                    if not all_detected_ids:
+                                        st.warning(
+                                            "No enrolled students were recognized in these photos. "
+                                            "Use a clear, front-facing photo and confirm each "
+                                            "student has a saved face profile."
                                         )
-                                        st.session_state[PENDING_JOB_KEY] = {
-                                            "job_ids": _job_ids,
-                                            "subject_id": selected_sub_id,
-                                            "subject_label": selected_label,
-                                            "candidate_ids": enrolled_sids,
-                                        }
-                                        _submitted_to_worker = True
-                                        st.rerun()
-                                    except WorkerError:
-                                        logger.warning(
-                                            "ML worker submit failed; falling back "
-                                            "to legacy in-process pipeline"
-                                        )
-                                if not _submitted_to_worker:
-                                    try:
-                                        all_detected_ids = predict_attendance_batch(
-                                            st.session_state.attendance_images,
-                                            candidate_ids=enrolled_sids,
-                                            distance_threshold=0.38,
-                                        )
-                                    except Exception:
-                                        logger.exception("Face attendance analysis failed")
-                                        st.error("Could not analyze the photos. Please try again.")
-                                        all_detected_ids = None
-                                    if all_detected_ids is not None:
-                                        present_attendance_result(
-                                            enrolled_stud,
-                                            all_detected_ids,
-                                            selected_sub_id,
-                                            selected_label,
-                                        )
+                                    present_attendance_result(
+                                        enrolled_stud,
+                                        all_detected_ids,
+                                        selected_sub_id,
+                                        selected_label,
+                                    )
         with c3:
             if st.button(
                 "Voice Attendance",
@@ -556,7 +518,7 @@ def attendance_records():
     """Attendance Records — Phase 1: paginated, filterable, CSV export.
 
     Records are loaded ONE page at a time, filtered server-side
-    (subject / present-absent); the totals in the tiles come from SQL
+    by subject; the totals in the tiles come from SQL
     counts (``count_attendance_for_teacher`` / ``get_session_counts``),
     never from loading every row (Phase 0 audit 9, 23, 24, 50).
     Percentages are rounded, not truncated (audit 50). Timestamps are
@@ -587,7 +549,8 @@ def attendance_records():
         f'color:{hdr_color};-webkit-text-fill-color:{hdr_color};margin:0 0 4px 0;">Attendance Recor'
             f'ds</h1>'
         f'<p style="font-family:Outfit,sans-serif;color:{sub_color};font-size:0.92rem;margin:0;">'
-        "Session breakdown and logs across all enrolled classes</p>"
+        "Session breakdown across classes. Select Present or Absent on a session to "
+        "review or correct its student entries.</p>"
         "</div>"
     )
 
@@ -597,21 +560,12 @@ def attendance_records():
         subject_labels[f"{s.get('name', 'Subject')} ({s.get('subject_code', '')})"] = s.get(
             "subject_id"
         )
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        subject_label = st.selectbox(
-            "Subject",
-            options=list(subject_labels.keys()),
-            key="smartclass_records_subject",
-        )
-    with f_col2:
-        status_label = st.selectbox(
-            "Status",
-            options=["All", "Present", "Absent"],
-            key="smartclass_records_status",
-        )
+    subject_label = st.selectbox(
+        "Subject",
+        options=list(subject_labels.keys()),
+        key="smartclass_records_subject",
+    )
     subject_filter = subject_labels.get(subject_label)
-    status_filter = {"All": None, "Present": True, "Absent": False}[status_label]
 
     # --- Totals from SQL counts (not from loaded rows) --------------------
     try:
@@ -660,7 +614,6 @@ def attendance_records():
         records = get_attendance_records(
             teacher_id,
             subject_id=subject_filter,
-            is_present=status_filter,
             limit=RECORDS_PAGE_SIZE,
             offset=page * RECORDS_PAGE_SIZE,
         )

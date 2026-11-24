@@ -135,7 +135,7 @@ def test_auto_enroll_clears_join_code_param_on_open():
     # The dialog must clear ?join-code as soon as it opens (audit 31):
     # assert on the source — the dialog body clears query params before
     # any lookup, and app.py clears before calling it.
-    src = (Path(REPO) / "src/components/dialog_auto_enroll.py").read_text()
+    src = (Path(REPO) / "src/components/dialog_auto_enroll.py").read_text(encoding="utf-8")
     assert "st.query_params.clear()" in src
     assert src.index("st.query_params.clear()") < src.index("get_subject_by_join_code(clean_code)")
 
@@ -147,7 +147,7 @@ def test_fonts_loaded_via_link_not_import():
     from src.ui.theme import FONT_LINK_TAG
 
     assert "<link" in FONT_LINK_TAG and "fonts.googleapis.com" in FONT_LINK_TAG
-    base = (Path(REPO) / "src/ui/base_layout.py").read_text()
+    base = (Path(REPO) / "src/ui/base_layout.py").read_text(encoding="utf-8")
     assert "@import url(" not in base
     assert "load_fonts()" in base
 
@@ -168,8 +168,8 @@ def test_no_time_sleep_after_toasts():
     for path in list(Path(REPO, "src/screen").glob("*.py")) + list(
         Path(REPO, "src/components").glob("*.py")
     ):
-        assert "time.sleep" not in path.read_text(), f"time.sleep in {path}"
-    assert "time.sleep" in (Path(REPO) / "src/database/config.py").read_text()
+        assert "time.sleep" not in path.read_text(encoding="utf-8"), f"time.sleep in {path}"
+    assert "time.sleep" in (Path(REPO) / "src/database/config.py").read_text(encoding="utf-8")
 
 
 def test_style_base_layout_renders_without_import(monkeypatch):
@@ -316,7 +316,7 @@ def test_teacher_jobs_present_result_uses_dialog(monkeypatch):
 
 
 def test_header_uses_cached_logo():
-    src = (Path(REPO) / "src/components/header.py").read_text()
+    src = (Path(REPO) / "src/components/header.py").read_text(encoding="utf-8")
     assert "cached_logo_base64" in src
 
 

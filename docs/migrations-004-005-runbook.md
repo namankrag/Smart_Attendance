@@ -51,9 +51,11 @@ Verify 004 (queries also at the bottom of the file):
   ('students','teachers','subjects','subject_students','attendance_logs')
   and column_name like '%_legacy';` — **0 rows**
 
-Note: after 001, `enrolled_at` defaults to migration time, so
-`v_attendance_percentages` shows 0 total classes / NULL pct for
-existing students until new sessions occur. Expected, not data loss.
+Migration 001 initially stamps pre-existing enrollments with migration
+time. Run `migrations/006_backfill_legacy_enrollment_dates.sql` after 005
+to move those dates back to each student's first recorded session, so
+historical sessions appear in their attendance totals. Enrollments with
+no attendance logs keep the original timestamp.
 
 ## Step 2 — run 005 (only after 004 verifies)
 

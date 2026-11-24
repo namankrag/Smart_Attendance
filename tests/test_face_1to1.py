@@ -56,3 +56,28 @@ def test_liveness_docstring_is_honest():
     doc = fp.validate_liveness.__doc__ or ""
     assert "HEURISTIC" in doc.upper() or "heuristic" in doc
     assert "does NOT" in doc or "not reliably" in doc.lower()
+
+
+def test_liveness_does_not_reject_dark_background_as_device_bezel(monkeypatch):
+    import src.pipelines.face_pipeline as fp
+
+    class Face:
+        def left(self):
+            return 30
+
+        def top(self):
+            return 20
+
+        def right(self):
+            return 70
+
+        def bottom(self):
+            return 70
+
+    monkeypatch.setattr(fp, "load_dlib_models", lambda: (lambda *_: [Face()], None, None))
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    image[15:75, 25:75] = 120
+
+    is_live, message = fp.validate_liveness(image)
+
+    assert is_live, message

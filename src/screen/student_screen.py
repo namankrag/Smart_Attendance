@@ -160,6 +160,26 @@ from src.screen.student_auth import (  # noqa: E402, F401
 from src.screen.student_face_dialog import add_face_scan_dialog  # noqa: E402, F401
 
 
+def _log_session_timestamp(log: Dict[str, Any]) -> Any:
+    session = log.get("attendance_sessions") or {}
+    if isinstance(session, list):
+        session = session[0] if session else {}
+    if isinstance(session, dict) and session.get("started_at"):
+        return session["started_at"]
+    return log.get("timestamp")
+
+
+def _classes_needed_for_target(present: int, total: int, target_percent: int) -> int:
+    """Minimum consecutive attended classes needed to reach a target rate."""
+    if total <= 0:
+        return 1
+    deficit = target_percent * total - 100 * present
+    if deficit <= 0:
+        return 0
+    denominator = 100 - target_percent
+    return (deficit + denominator - 1) // denominator
+
+
 def student_dashboard():
     stud_data = st.session_state.student_data
     stud_id = stud_data["student_id"]
@@ -218,7 +238,7 @@ def student_dashboard():
     with st.spinner("Loading enrolled classes..."):
         try:
             enrollments = get_student_subjects(stud_id)
-            raw_logs = get_student_attendance(stud_id)
+            raw_logs = get_student_attendance(stud_id, limit=1000)
         except Exception:
             logger.exception("Failed to load student dashboard data")
             st.error("Could not load your subjects. Please try again.")
@@ -241,6 +261,8 @@ def student_dashboard():
         footer_dashboard()
         return
 
+    st.caption("Target estimates assume you attend every upcoming class.")
+
     # Index raw logs by subject_id
     logs_by_subject: Dict[Any, List[Dict[str, Any]]] = {}
     for log in raw_logs:
@@ -256,33 +278,73 @@ def student_dashboard():
         sub_code = sub.get("subject_code", "N/A")
         sub_section = sub.get("section", "A")
 
-        # Only count sessions from enrollment onward. ``enrolled_at`` is on
-        # the enrollment row (subject_students.enrolled_at); if it is absent
-        # (pre-migration data) fall back to all provided sessions.
+        # Keep saved records from an earlier enrollment, but only count
+        # sessions without a saved record during the current enrollment.
         enrolled_at = _parse_ts(item.get("enrolled_at"))
-        session_timestamps = list(sub.get("session_timestamps", []))
-        if enrolled_at is not None:
-            session_timestamps = [
-                ts for ts in session_timestamps if (_parse_ts(ts) or enrolled_at) >= enrolled_at
-            ]
-        total_classes = len(session_timestamps)
+        all_session_timestamps = list(sub.get("session_timestamps", []))
+        all_user_logs = logs_by_subject.get(sid, [])
 
-        user_logs = logs_by_subject.get(sid, [])
-        if enrolled_at is not None:
-            user_logs = [
-                log
-                for log in user_logs
-                if (_parse_ts(log.get("timestamp")) or enrolled_at) >= enrolled_at
+        history_logs: List[Dict[str, Any]] = []
+        current_logs: List[Dict[str, Any]] = []
+        if enrolled_at is None:
+            current_logs = list(all_user_logs)
+            current_session_timestamps = all_session_timestamps
+        else:
+            for log in all_user_logs:
+                log_session_at = _log_session_timestamp(log)
+                log_session_date = _parse_ts(log_session_at)
+                if log_session_date is not None and log_session_date < enrolled_at:
+                    history_logs.append(log)
+                else:
+                    current_logs.append(log)
+            current_session_timestamps = [
+                ts for ts in all_session_timestamps
+                if (_parse_ts(ts) or enrolled_at) >= enrolled_at
             ]
+
+        history_session_keys = {
+            str(_log_session_timestamp(log))
+            for log in history_logs
+            if _log_session_timestamp(log)
+        }
+        current_session_keys = {
+            str(ts) for ts in current_session_timestamps if ts
+        }
+        current_session_keys.update(
+            str(_log_session_timestamp(log))
+            for log in current_logs
+            if _log_session_timestamp(log)
+        )
+        total_classes = len(history_session_keys) + len(current_session_keys)
+        user_logs = history_logs + current_logs
         attended_classes = sum(1 for log in user_logs if log.get("is_present"))
         absent_classes = max(0, total_classes - attended_classes)
+        attendance_pct = (
+            min(100.0, attended_classes * 100.0 / total_classes)
+            if total_classes
+            else None
+        )
+        attendance_pct_display = (
+            f"{attendance_pct:.1f}%" if attendance_pct is not None else "N/A"
+        )
+        classes_to_75 = _classes_needed_for_target(attended_classes, total_classes, 75)
+        classes_to_85 = _classes_needed_for_target(attended_classes, total_classes, 85)
 
-        # Build dynamic subject log history (sessions on/after enrollment only)
+        def target_stat(target: int, needed: int):
+            if needed == 0:
+                return ("🎯", f"{target}% target", "Reached")
+            noun = "class" if needed == 1 else "classes"
+            return ("🎯", f"{noun} to reach {target}%", needed)
+
+        # Build history from saved records across all enrollments. Synthesize
+        # absences only for sessions in the current enrollment period.
         subject_logs: List[Dict[str, Any]] = list(user_logs)
         recorded_timestamps = {
-            str(log.get("timestamp")) for log in user_logs if log.get("timestamp")
+            str(_log_session_timestamp(log))
+            for log in current_logs
+            if _log_session_timestamp(log)
         }
-        for ts in session_timestamps:
+        for ts in current_session_timestamps:
             if str(ts) not in recorded_timestamps:
                 subject_logs.append({"timestamp": ts, "is_present": False})
 
@@ -373,7 +435,12 @@ def student_dashboard():
                 name=sub_name,
                 code=sub_code,
                 section=sub_section,
-                stats=[("📅", "Total classes", total_classes)],
+                stats=[
+                    ("📅", "Total classes", total_classes),
+                    ("📊", "Current attendance", attendance_pct_display),
+                    target_stat(75, classes_to_75),
+                    target_stat(85, classes_to_85),
+                ],
                 action_callback=attendance_actions,
                 footer_callback=unenrolled,
             )
@@ -638,11 +705,22 @@ def student_screen():
                 )
 
             if photo_src:
+                st.caption(
+                    "Keep your full face centered with no one else in frame. "
+                    "After capture, choose Verify Face to sign in."
+                )
+
+            if photo_src and st.button(
+                "Verify Face",
+                type="primary",
+                width="stretch",
+                key="btn_verify_face_login",
+            ):
                 img = Image.open(photo_src).convert("RGB")
                 with st.spinner("Verifying live presence & biometric signature..."):
                     is_live, liveness_msg = validate_liveness(img)
                     if not is_live:
-                        st.error(f"🛡️ Anti-Spoofing Alert: {liveness_msg}")
+                        st.error(f"Liveness check: {liveness_msg}")
                         st.caption(LIVENESS_NOTE)
                     else:
                         identifier = (login_face_id or "").strip()
@@ -823,7 +901,7 @@ def student_screen():
                                 reg_img = Image.open(reg_photo).convert("RGB")
                                 is_live, liveness_msg = validate_liveness(reg_img)
                                 if not is_live:
-                                    st.error(f"🛡️ Anti-Spoofing Alert: {liveness_msg}")
+                                    st.error(f"Liveness check: {liveness_msg}")
                                     st.caption(LIVENESS_NOTE)
                                 else:
                                     _buf = io.BytesIO()

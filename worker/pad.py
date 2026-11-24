@@ -1,7 +1,7 @@
 """Face presentation-attack detection (Phase 2.4).
 
 Replaces the heuristic liveness in ``src/pipelines/face_pipeline.py``
-(glare / Moiré / bezel checks), which the spec is explicit about: it
+(glare / Moiré checks), which the spec is explicit about: it
 does NOT reliably block printed photos or video replays, and must
 never be the sole gate. This module is the replacement:
 

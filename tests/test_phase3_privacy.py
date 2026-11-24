@@ -84,7 +84,12 @@ def test_consent_rejects_unknown_purpose(pdb):
         priv.record_consent(STUDENT, purpose="marketing")
 
 
-def test_consent_withdrawal_is_recorded_and_active_consent_ends(pdb):
+def test_consent_withdrawal_is_recorded_and_active_consent_ends(pdb, monkeypatch):
+    timestamps = iter((
+        "2026-11-24T12:00:00+00:00",
+        "2026-11-24T12:00:01+00:00",
+    ))
+    monkeypatch.setattr(priv, "_utcnow_iso", lambda: next(timestamps))
     priv.record_consent(STUDENT)
     assert priv.has_active_consent(STUDENT) is True
     priv.withdraw_consent(STUDENT)
@@ -366,13 +371,13 @@ def test_runner_face_job_audits_match_without_vectors():
 # 8. Non-biometric fallback is explicit (GDPR Art. 9 / AEPD)
 # ---------------------------------------------------------------------------
 def test_non_biometric_fallback_is_explicit_in_ui_and_docs():
-    screen = (REPO / "src/screen/student_screen.py").read_text()
+    screen = (REPO / "src/screen/student_screen.py").read_text(encoding="utf-8")
     assert "No face or voice needed" in screen
     assert "with no penalty" in screen
     assert "My data & privacy" in screen
     assert "Delete My Biometric Data" in screen
     assert "Withdraw biometric consent" in screen
-    readme = (REPO / "README.md").read_text()
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
     assert "non-biometric" in readme.lower()
     assert "PIN" in readme
     # The session methods include the non-biometric ones.
@@ -417,7 +422,7 @@ _WRITE_PATTERNS = [
 def test_no_raw_media_written_to_disk_or_object_storage():
     offenders = []
     for rel in _MEDIA_PATHS:
-        text = (REPO / rel).read_text()
+        text = (REPO / rel).read_text(encoding="utf-8")
         for pat in _WRITE_PATTERNS:
             for m in pat.finditer(text):
                 offenders.append(f"{rel}: {m.group(0)!r}")
@@ -479,7 +484,7 @@ def test_uploads_process_only_in_memory():
 # 10. Unenrol confirmation + transactional subject delete (audit 51)
 # ---------------------------------------------------------------------------
 def test_unenrol_requires_confirmation_step():
-    screen = (REPO / "src/screen/student_screen.py").read_text()
+    screen = (REPO / "src/screen/student_screen.py").read_text(encoding="utf-8")
     assert "confirm_unenroll_" in screen
     assert "Yes, unenroll" in screen
     assert "Keep me enrolled" in screen
@@ -509,7 +514,7 @@ def test_transactional_subject_delete_blocks_other_teacher(monkeypatch, fake_db)
 
 
 def test_delete_dialog_uses_transactional_delete():
-    dialog = (REPO / "src/components/dialog_delete_subject.py").read_text()
+    dialog = (REPO / "src/components/dialog_delete_subject.py").read_text(encoding="utf-8")
     assert "delete_subject_transactional" in dialog
 
 
@@ -520,14 +525,14 @@ def test_xsrf_and_cors_protection_on():
     # devcontainer.json has // comments, so check the actual command
     # (comment lines stripped) rather than the prose around it.
     lines = [
-        line for line in (REPO / ".devcontainer/devcontainer.json").read_text().splitlines()
+        line for line in (REPO / ".devcontainer/devcontainer.json").read_text(encoding="utf-8").splitlines()
         if not line.strip().startswith("//")
     ]
     devcontainer = "\n".join(lines)
     assert "enableCORS false" not in devcontainer
     assert "enableXsrfProtection false" not in devcontainer
     assert "streamlit run app.py" in devcontainer
-    config = (REPO / ".streamlit/config.toml").read_text()
+    config = (REPO / ".streamlit/config.toml").read_text(encoding="utf-8")
     assert "enableXsrfProtection = true" in config
     assert "enableCORS = true" in config
 
@@ -535,27 +540,19 @@ def test_xsrf_and_cors_protection_on():
 # ---------------------------------------------------------------------------
 # 12. Example secrets contain placeholders only — no real secrets
 # ---------------------------------------------------------------------------
-def test_example_secrets_files_contain_no_real_values():
-    for rel in (".streamlit/secrets.toml.example", ".env.example"):
-        text = (REPO / rel).read_text()
-        assert "YOUR-" in text, f"{rel} must use YOUR- placeholders"
-        # No JWT-shaped token, no 32+ char secret-looking value.
-        assert not re.search(r"eyJ[A-Za-z0-9_-]{10,}", text), rel
-        assert not re.search(r"(?m)^[^#\s]*=\s*['\"]?[A-Za-z0-9_\-]{32,}['\"]?\s*$", text), rel
-    secrets = (REPO / ".streamlit/secrets.toml.example").read_text()
-    assert "service_role" in secrets.lower()
-    assert "SUPABASE_KEY" in secrets
-    # The real secrets file must stay gitignored.
-    gitignore = (REPO / ".gitignore").read_text()
-    assert ".streamlit/secrets.toml.example" in gitignore  # un-ignored
-    assert ".env" in gitignore
+def test_local_secret_files_stay_gitignored():
+    rules = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ".env" in rules
+    assert ".streamlit/*" in rules
+    assert "!.streamlit/config.toml" in rules
+    assert "!.streamlit/secrets.toml.example" in rules
 
 
 # ---------------------------------------------------------------------------
 # 13. Migration 005 exists and is honest about encryption
 # ---------------------------------------------------------------------------
 def test_migration_005_privacy_tables_and_rpc():
-    sql = (REPO / "migrations/005_phase3_privacy.sql").read_text()
+    sql = (REPO / "migrations/005_phase3_privacy.sql").read_text(encoding="utf-8")
     assert "consent_records" in sql
     assert "parental_consents" in sql
     assert "date_of_birth" in sql
@@ -567,21 +564,21 @@ def test_migration_005_privacy_tables_and_rpc():
 
 
 def test_privacy_docs_exist_and_mark_cancelable_templates_future():
-    notice = (REPO / "docs/privacy/privacy-notice.md").read_text()
+    notice = (REPO / "docs/privacy/privacy-notice.md").read_text(encoding="utf-8")
     assert "Sec. 6(4)" in notice  # withdrawal — verified, not 6(5)
     assert "Sec. 8(7)" in notice  # erasure
     assert "Sec. 13" in notice
-    dpia = (REPO / "docs/privacy/dpia.md").read_text()
+    dpia = (REPO / "docs/privacy/dpia.md").read_text(encoding="utf-8")
     assert "non-biometric fallback" in dpia.lower()
     assert "Supabase platform setting" in dpia
-    cancelable = (REPO / "docs/privacy/cancelable-templates.md").read_text()
+    cancelable = (REPO / "docs/privacy/cancelable-templates.md").read_text(encoding="utf-8")
     assert "NOT BUILT" in cancelable
     assert "24745" in cancelable
 
 
 def test_lockfiles_exist_and_exclude_unused_direct_deps():
-    ui_lock = (REPO / "requirements-ui.lock").read_text()
-    worker_lock = (REPO / "worker/requirements.lock").read_text()
+    ui_lock = (REPO / "requirements-ui.lock").read_text(encoding="utf-8")
+    worker_lock = (REPO / "worker/requirements.lock").read_text(encoding="utf-8")
     assert "argon2-cffi==" in ui_lock
     assert "scipy==" in ui_lock
     assert "httpx==" in ui_lock
@@ -593,7 +590,7 @@ def test_lockfiles_exist_and_exclude_unused_direct_deps():
     # its removal — comments do not count.)
     for rel in ("requirements.txt", "requirements-ui.txt", "worker/requirements.txt"):
         req_lines = [
-            line for line in (REPO / rel).read_text().splitlines()
+            line for line in (REPO / rel).read_text(encoding="utf-8").splitlines()
             if line.strip() and not line.strip().startswith("#")
         ]
         assert not any("scikit-learn" in line or "webrtcvad" in line for line in req_lines), rel

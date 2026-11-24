@@ -66,7 +66,7 @@ SmartClass is a web-based attendance management system built with **Python** and
   - Classroom photos add **micro-tilt passes (±15°)** to catch tilted heads, with duplicate suppression by descriptor distance.
   - Matching uses a strict Euclidean threshold (default `0.38`) and is **scoped to students enrolled in the selected subject**, which avoids false matches against students from other classes.
   - Gallery embeddings are cached for 5 minutes and refreshed when a profile is registered or updated.
-- **Heuristic liveness screening** on face login and extra-scan enrolment. It looks for weak signals — phone/tablet bezels around the face, screen glare and over-exposed regions, and Moiré patterns from digital screens (FFT frequency-energy analysis) — and may flag some of them. **It does not reliably block printed photos or video replays**, and a pass is not proof of a live person. See [Honest Threat Model & Limitations](#-honest-threat-model--limitations).
+- **Heuristic liveness screening** on face login and extra-scan enrolment. It looks for weak signals — screen glare and over-exposed regions, and Moiré patterns from digital screens (FFT frequency-energy analysis) — and may flag some of them. **It does not reliably block printed photos or video replays**, and a pass is not proof of a live person. See [Honest Threat Model & Limitations](#-honest-threat-model--limitations).
 - **Voice recognition** with `resemblyzer` (256-D speaker embeddings) and `librosa`. Classroom audio is split into speech segments and each is matched by cosine similarity (default threshold `0.65`) against enrolled students' voice prints.
 
 ### 🔗 Join Links & QR Codes
@@ -95,7 +95,7 @@ SmartClass is a web-based attendance management system built with **Python** and
 | Language | Python 3.11 |
 | Web framework | [Streamlit](https://streamlit.io/) |
 | Database / Backend | [Supabase](https://supabase.com/) (Postgres + pgvector + Auth + RLS) |
-| Face recognition | Phase 2 worker: ONNX Runtime, SCRFD + ArcFace/AdaFace; legacy `dlib-bin` path kept behind `FACE_BACKEND=dlib` |
+| Face recognition | `dlib-bin` HOG + 68-point landmarks + ResNet descriptors (128-D), matching the existing student templates; the ONNX worker path awaits 512-D enrollment support |
 | Voice recognition | Phase 2 worker: ECAPA-TDNN (`speechbrain`), pyannote diarization, AASIST; legacy `resemblyzer` path kept for local dev |
 | Data / numerics | `numpy`, `pandas`, `scipy` |
 | Authentication | Google-first via Supabase Auth (`st.login` OIDC bridge); PINs/passwords hashed with Argon2id (`argon2-cffi`, OWASP) — legacy bcrypt hashes are transparently re-hashed on login |
@@ -108,18 +108,18 @@ SmartClass is a web-based attendance management system built with **Python** and
 
 ```mermaid
 flowchart LR
-    Student["Student / Teacher\n(browser)"] --> UI["Streamlit UI\n(light image, no ML libs)\nDockerfile.ui"]
+    Student["Student / Teacher\n(browser)"] --> UI["Streamlit UI\ndlib face recognition\nDockerfile.ui"]
     UI -->|anon key + user JWT\nRLS enforced| SB["Supabase Postgres\nstudents / subjects /\nattendance / audit_log"]
     UI -->|anon key + JWT| SB
     SB <-->|pgvector 512-d face\n192-d voice, HNSW| VEC["face_embeddings\nvoice_embeddings"]
-    UI -->|POST /jobs\nGET /jobs/id| W["FastAPI ML worker\nDockerfile.worker\nONNX face/voice + PAD"]
+    UI -->|voice jobs\nPOST /jobs + polling| W["FastAPI ML worker\nDockerfile.worker\nONNX voice + PAD"]
     W -->|service_role key\n(worker env only)| SB
     W -->|FOR UPDATE SKIP LOCKED| JOBS["inference_jobs"]
     W -.->|raw photo/audio\nin memory only,\ndeleted after use| W
 ```
 
-- **UI image** (`Dockerfile.ui`, `requirements-ui.txt` → `requirements-ui.lock`): Streamlit + Supabase client + Argon2id. No torch / dlib / onnxruntime / pyannote.
-- **Worker image** (`Dockerfile.worker`, `worker/requirements.txt` → `worker/requirements.lock`): FastAPI + ONNX Runtime + torch/SpeechBrain/pyannote, model weights baked in, `/healthz` + `/readyz`. Started by `docker-compose.yml` alongside the UI.
+- **UI image** (`Dockerfile.ui`, `requirements-ui.txt` → `requirements-ui.lock`): Streamlit + Supabase client + Argon2id + dlib face recognition. The current face flow stores 128-D templates in `students.face_embedding`; the ONNX worker requires 512-D templates and is not used for face attendance yet.
+- **Worker image** (`Dockerfile.worker`, `worker/requirements.txt` → `worker/requirements.lock`): FastAPI + ONNX Runtime + torch/SpeechBrain/pyannote, model weights baked in, `/healthz` + `/readyz`. The UI uses it for voice jobs; face jobs stay on dlib until enrollment writes compatible 512-D templates. Started by `docker-compose.yml` alongside the UI.
 - **Database:** Supabase Postgres with pgvector (migration 004), RLS policies (migrations 001/003/004/005), append-only `audit_log`, and `consent_records` / `parental_consents` (migration 005).
 - **Raw media:** photos/audio are held in memory only (UI session state / worker payload cache) and deleted immediately after inference. They are never written to disk or object storage. See `docs/privacy/dpia.md`.
 
@@ -127,7 +127,7 @@ flowchart LR
 
 ## ⚙️ How It Works
 
-1. **Registration**: a student reads the plain-language privacy notice, gives consent, and (if 18+) scans their face (passing the heuristic liveness screening in the legacy path, or Phase 2 PAD in the worker path — see [limitations](#-honest-threat-model--limitations)) and optionally records a voice sample. Templates are stored as 512-D face / 192-D voice vectors in `face_embeddings` / `voice_embeddings`; raw photos/audio are deleted immediately after inference. Under-18s register PIN-only until a parent/guardian consents in person to the teacher.
+1. **Registration**: a student reads the plain-language privacy notice, gives consent, and (if 18+) scans their face (passing the heuristic liveness screening — see [limitations](#-honest-threat-model--limitations)) and optionally records a voice sample. The active face flow stores a 128-D dlib template in `students.face_embedding`; the ONNX worker's 512-D face gallery is not currently populated by enrollment. Under-18s register PIN-only until a parent/guardian consents in person to the teacher.
 2. **Class creation**: a teacher creates a subject and gets a join code, link and QR code.
 3. **Enrolment**: students enter the code, open the link or scan the QR code; the `auto_enroll` dialog confirms and enrols them.
 4. **Attendance**: the teacher adds classroom photos (face scan) or records audio (voice scan). The system detects faces/speakers, matches them against **only the students enrolled in that subject**, and builds a report. Students can also be marked by PIN login or manually — no biometrics required.
@@ -199,9 +199,6 @@ venv\Scripts\activate
 
 # 3. Install dependencies (locked, Python 3.11 — see requirements-ui.lock)
 pip install -r requirements-ui.lock
-# Legacy local-dev stack (dlib/resemblyzer) only if you need the old
-# in-process pipelines:
-# pip install -r requirements.txt
 ```
 
 ---
@@ -227,7 +224,7 @@ For local Docker runs, copy `.env.example` to `.env` (worker secrets go there, n
 
 > **Status: not deployed.** The deployment decision (Streamlit Community Cloud vs a container for the UI; Cloud Run vs Render for the worker) still needs Naman. Nothing below has been run against a hosted environment yet.
 
-1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`. Back up (`pg_dump`) before each run. Never run migrations from the app.
+1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`, then `006_backfill_legacy_enrollment_dates.sql`. Migration 006 restores historical attendance counts for enrollments that existed before 001. Back up (`pg_dump`) before each run. Never run migrations from the app.
 2. **Auth:** create a Google Cloud OAuth client with redirect `https://<your-project>.supabase.co/auth/v1/callback`, enable the Google provider in Supabase Auth, and link each teacher/student `auth_user_id` to their row (without the link, RLS returns zero rows by design).
 3. **Worker:** bake the model weights into the worker image (`worker/models/` — the build fails if any weight is missing), set `SUPABASE_SERVICE_ROLE_KEY`, `HF_TOKEN` and `DATABASE_URL` in the worker environment only, and deploy the worker first. Check `GET /readyz` returns 200.
 4. **UI:** deploy the Streamlit app with `SUPABASE_URL` + `SUPABASE_ANON_KEY` only (via `.streamlit/secrets.toml` or environment), set `ML_WORKER_URL` to the worker, and confirm XSRF/CORS protection is on (`.streamlit/config.toml`).
@@ -240,7 +237,7 @@ Local Docker equivalent: `docker compose up --build` (UI on :8501, worker on :80
 
 ## 🗄️ Database Schema
 
-Apply the migrations in `migrations/` (001–005) — the table below is a summary, not the DDL. Key tables:
+Apply the migrations in `migrations/` (001–006) — the table below is a summary, not the DDL. Key tables:
 
 | Table | Columns |
 |---|---|
@@ -252,7 +249,7 @@ Apply the migrations in `migrations/` (001–005) — the table below is a summa
 | `subjects` | `subject_id` (UUID PK), `subject_code`, `name`, `section`, `teacher_id` (FK), `join_code` (unique) |
 | `subject_students` | `student_id` (FK), `subject_id` (FK), `enrolled_at` |
 | `attendance_sessions` | `session_id` (UUID PK), `subject_id`, `teacher_id`, `method`, `started_at` |
-| `attendance_logs` | `id` (UUID PK), `session_id`, `student_id`, `subject_id`, `timestamp`, `is_present`, `UNIQUE (session_id, student_id)` |
+| `attendance_logs` | `id` (BIGINT PK), `session_id`, `student_id`, `subject_id`, `timestamp`, `is_present`, `UNIQUE (session_id, student_id)` |
 | `audit_log` | append-only: `actor_id`, `action`, `table_name`, `record_id`, `details`, `created_at` |
 
 Notes:
@@ -334,7 +331,7 @@ The repository ships with a `.devcontainer` configuration (Python 3.11), so you 
 | `KeyError: 'SUPABASE_URL'` | Add `SUPABASE_URL` and `SUPABASE_KEY` as top-level keys in `.streamlit/secrets.toml`. |
 | Supabase connection errors | Verify the URL / key and the table and column names above. |
 | Camera or microphone not working | Allow browser permissions and use `localhost` or HTTPS. |
-| "Anti-Spoofing Alert" on a real face | Face the camera directly in even, natural lighting; avoid strong backlight, glare, and dark surroundings. |
+| "Liveness check" on a real face | Keep one full face centered in frame; use even lighting and avoid strong backlight or glare. |
 | Faces not recognised | Use good lighting, front-facing photos and higher-resolution images; add extra face scans from the student sidebar. |
 | Wrong student marked present | Lower the distance threshold (default `0.38`) in `face_pipeline.py` / `teacher_screen.py`, or fix the entry in **Attendance Records**. |
 
@@ -345,7 +342,7 @@ The repository ships with a `.devcontainer` configuration (Python 3.11), so you 
 This section states plainly what the system does **not** protect against yet. Do not rely on the features below beyond what is written here.
 
 ### What is NOT true today
-- **Printed photos and video replays are not reliably blocked in the legacy path.** The legacy dlib face login uses heuristic screening only (glare, Moiré, bezel signals). A printed photo or a replayed video can pass it. Face login is therefore a *convenience* factor, not a security boundary. The Phase 2 worker has a real PAD model (MiniFASNet/CDCN) — but it is **not deployed and not evaluated** (see below).
+- **Printed photos and video replays are not reliably blocked in the legacy path.** The legacy dlib face login uses heuristic screening only (glare and Moiré signals). A printed photo or a replayed video can pass it. Face login is therefore a *convenience* factor, not a security boundary. The Phase 2 worker has a real PAD model (MiniFASNet/CDCN) — but it is **not deployed and not evaluated** (see below).
 - **The face-match threshold (0.38, legacy) is uncalibrated.** It was chosen ad hoc, not measured on a labelled dataset, so the real false-match / false-non-match rates are unknown. The worker's thresholds are uncalibrated starting points too.
 - **Biometric templates are stored as plain embedding vectors** in Supabase (512-D face / 192-D voice in pgvector; 128-D / 256-D legacy vectors in `students`). They are not encrypted at rest by the app, and they cannot be revoked like a password if leaked — a new scan is the only rotation. Encryption at rest is a Supabase platform setting, not app-level encryption. Cancelable templates (ISO/IEC 24745) are documented as a future option only.
 - **Voice attendance can be spoofed by replay** (playing a recording of a student), and students with no voiceprint are simply undetectable by voice. The worker's AASIST anti-spoofing is not evaluated yet.

@@ -131,4 +131,4 @@ def test_main_writes_json_report(tmp_path):
     out = tmp_path / "report.json"
     assert evaluate_biometrics.main(
         ["--dataset", str(d), "--output", str(out), "--threshold", "0.4"]) == 0
-    assert json.loads(out.read_text())["verification"]["fmr"] == 0.0
+    assert json.loads(out.read_text(encoding="utf-8"))["verification"]["fmr"] == 0.0

@@ -38,6 +38,10 @@ deprecation==2.1.0
     # via
     #   postgrest
     #   storage3
+dlib-bin==19.24.6
+    # via -r requirements-ui.txt
+face-recognition-models @ git+https://github.com/ageitgey/face_recognition_models@e67de717267507d1e9246de95692eb8be736ab61
+    # via -r requirements-ui.txt
 h11==0.16.0
     # via
     #   httpcore

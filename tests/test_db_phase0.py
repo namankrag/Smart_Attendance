@@ -90,6 +90,23 @@ def test_ownership_checks_block_other_teacher(monkeypatch, fake_db):
     assert fake_db.tables["subjects"]  # nothing deleted
 
 
+def test_update_attendance_status_accepts_bigint_log_id(monkeypatch, fake_db):
+    monkeypatch.setattr(dbmod, "supabase", fake_db)
+    log = {
+        "id": 173,
+        "session_id": "sess-1",
+        "student_id": STUDENT,
+        "subject_id": SUBJECT,
+        "timestamp": "2026-09-20T09:41:07+00:00",
+        "is_present": False,
+    }
+    fake_db.tables["attendance_logs"].append(log)
+
+    dbmod.update_attendance_status(173, True, teacher_id=TEACHER)
+
+    assert log["is_present"] is True
+
+
 def test_pagination_validates_and_caps(monkeypatch, fake_db):
     monkeypatch.setattr(dbmod, "supabase", fake_db)
     with pytest.raises(ValueError):

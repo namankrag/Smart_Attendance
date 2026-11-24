@@ -1,14 +1,14 @@
-# Smart Attendance — UI-only dependencies (Phase 2, light image).
-# Python 3.11. This is what Dockerfile.ui installs: Streamlit + data
-# access + auth, and NO torch / dlib / onnxruntime / pyannote /
-# resemblyzer / librosa. All ML runs in the worker image.
-# The legacy dlib/resemblyzer stack lives in requirements.txt (local
-# dev / transition) until the worker cutover removes the last in-process
-# pipeline imports from the UI.
+# Smart Attendance — UI dependencies (Python 3.11).
+# Face enrollment and recognition use the proven local dlib pipeline
+# against the existing 128-D students.face_embedding templates. The
+# ONNX worker expects 512-D templates that this app does not yet write.
+# Keep the UI's face runtime and model package installed until enrollment
+# is migrated together with worker matching.
 streamlit>=1.39,<2
 
 # Utilities
 numpy>=1.26,<2
+pyarrow>=16,<26  # PyArrow 26 requires NumPy 2.x; the UI stack stays on NumPy 1.x.
 pandas>=2.1,<3
 setuptools>=68
 scipy>=1.11,<2
@@ -20,3 +20,7 @@ argon2-cffi>=23.1,<24
 
 segno>=1.6,<2
 pillow>=10.0,<11
+
+# Face recognition (same model and template format as the working main branch).
+dlib-bin>=19.24,<20
+face-recognition-models @ git+https://github.com/ageitgey/face_recognition_models@e67de717267507d1e9246de95692eb8be736ab61
