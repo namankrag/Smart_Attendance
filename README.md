@@ -113,7 +113,7 @@ flowchart LR
     UI -->|anon key + JWT| SB
     SB <-->|pgvector 512-d face\n192-d voice, HNSW| VEC["face_embeddings\nvoice_embeddings"]
     UI -->|voice jobs\nPOST /jobs + polling| W["FastAPI ML worker\nDockerfile.worker\nONNX voice + PAD"]
-    W -->|service_role key\n(worker env only)| SB
+    W -->|service_role key in worker env only| SB
     W -->|FOR UPDATE SKIP LOCKED| JOBS["inference_jobs"]
     W -.->|raw photo/audio\nin memory only,\ndeleted after use| W
 ```
