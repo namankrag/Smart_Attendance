@@ -50,7 +50,7 @@ def share_subject(sub_name: str, sub_code: str, join_code: str | None = None, su
     dark = is_dark_theme()
 
     # Determine base domain dynamically if available, otherwise default
-    base_url = "https://smartclass-main.streamlit.app"
+    base_url = "https://attend-dev.streamlit.app"
     try:
         # Check if custom base url is specified in secrets
         if "APP_URL" in st.secrets:

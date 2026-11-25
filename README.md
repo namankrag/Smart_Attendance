@@ -2,10 +2,10 @@
 
 > Making attendance faster using AI.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://smartclass-main.streamlit.app/)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-smartclass--main.streamlit.app-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://smartclass-main.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://attend-dev.streamlit.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-attend--dev.streamlit.app-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://attend-dev.streamlit.app/)
 
-🚀 **Live App:** [https://smartclass-main.streamlit.app/](https://smartclass-main.streamlit.app/)
+🚀 **Live App:** [https://attend-dev.streamlit.app/](https://attend-dev.streamlit.app/)
 
 SmartClass is a web-based attendance management system built with **Python** and **Streamlit**. It replaces manual roll calls with AI-driven **face recognition** and **voice recognition**, screens face login with **heuristic liveness checks** (see [Honest Threat Model & Limitations](#-honest-threat-model--limitations) — these are not presentation-attack detection), and lets students join classes instantly through **QR codes / join links**. Teachers and students each get their own dashboard, and all data is stored in a **Supabase** backend.
 
@@ -214,7 +214,7 @@ SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY"
 
 > ⚠️ `SUPABASE_KEY` is the **anon key only**. The service_role key bypasses Row Level Security and must NEVER be placed here or anywhere in the Streamlit app — it lives in the ML worker environment only (see `.env.example`). Never commit your secrets: `.streamlit/secrets.toml` and `.env` are gitignored; only the `.example` files are checked in.
 
-If `APP_URL` is not set, share links default to `https://smartclass-main.streamlit.app`.
+If `APP_URL` is not set, share links default to `https://attend-dev.streamlit.app`.
 
 For local Docker runs, copy `.env.example` to `.env` (worker secrets go there, never in the UI service).
 
@@ -286,7 +286,7 @@ The app opens at **http://localhost:8501**.
 
 ### Join Link Format
 ```
-https://smartclass-main.streamlit.app/?join-code=<CLASS_CODE>
+https://attend-dev.streamlit.app/?join-code=<CLASS_CODE>
 ```
 
 ---
