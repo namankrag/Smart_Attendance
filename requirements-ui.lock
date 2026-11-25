@@ -9,6 +9,8 @@ anyio==4.16.0
     #   httpx
     #   starlette
     #   streamlit
+authlib==1.6.6
+    # via -r requirements-ui.txt
 argon2-cffi==23.1.0
     # via -r requirements-ui.txt
 argon2-cffi-bindings==26.2.0
@@ -33,7 +35,9 @@ click==8.5.1
     #   streamlit
     #   uvicorn
 cryptography==50.0.2
-    # via pyjwt
+    # via
+    #   authlib
+    #   pyjwt
 deprecation==2.1.0
     # via
     #   postgrest
