@@ -1,8 +1,9 @@
 """Quick enrollment from a join-code deep link (?join-code=...).
 
 Enrols by the separate, URL-safe join_code — never by subject_code.
-The code is URL-decoded and format-validated before any lookup, and all
-lookups go through ``src.database.db`` (no direct Supabase calls).
+The code is URL-decoded and format-validated before the authenticated
+enrollment RPC runs. There is no preliminary subjects-table lookup because
+RLS hides classes from students who are not enrolled yet.
 
 Phase 2.1: the ``?join-code`` query param is cleared as soon as this
 dialog opens (audit 31) so the code does not linger in the URL or
@@ -10,14 +11,10 @@ re-trigger on refresh; validation (including expiry for v1 codes)
 lives in ``src/ui/join_codes.py``.
 """
 
-import html
-
 import streamlit as st
 
 from src.database.rest_db import (
-    is_student_enrolled,
     join_subject_by_code,
-    lookup_subject_by_join_code,
 )
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
@@ -40,7 +37,6 @@ def auto_enroll(join_code: str):
         st.query_params.clear()
     except Exception:
         pass
-    stud_id = st.session_state.student_data["student_id"]
     clean_code = validate_join_code(join_code or "")
     dark = is_dark_theme()
 
@@ -48,41 +44,6 @@ def auto_enroll(join_code: str):
         dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
         st.error("❌ Join code not found!")
         if st.button("Close", key="btn_close_not_found"):
-            st.query_params.clear()
-            st.rerun()
-        return
-
-    try:
-        subject = lookup_subject_by_join_code(clean_code)
-    except Exception:
-        dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
-        st.error("❌ Join code not found!")
-        if st.button("Close", key="btn_close_not_found"):
-            st.query_params.clear()
-            st.rerun()
-        return
-
-    if not subject:
-        dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
-        st.error("❌ Join code not found!")
-        if st.button("Close", key="btn_close_not_found"):
-            st.query_params.clear()
-            st.rerun()
-        return
-
-    try:
-        already = (
-            is_student_enrolled(stud_id, subject["subject_id"])
-            if is_student_enrolled is not None
-            else False
-        )
-    except Exception:
-        already = False
-
-    if already:
-        dialog_banner("Already Enrolled", subtitle=str(subject.get("name", "")), theme="teal")
-        st.info("✅ You are already enrolled in this subject!")
-        if st.button("Got it!", key="btn_got_it"):
             st.query_params.clear()
             st.rerun()
         return
@@ -113,7 +74,7 @@ def auto_enroll(join_code: str):
                 font-weight: 700;
                 color: {sub_title_col};
                 margin: 8px 0 4px;
-            ">{html.escape(str(subject.get("name", "")))}</p>
+            ">Join the class shared by your teacher</p>
             <p style="
                 font-family: Outfit, sans-serif;
                 font-size: 0.88rem;
@@ -135,10 +96,16 @@ def auto_enroll(join_code: str):
             "🚀  Yes, Enroll!", type="primary", width="stretch", key="btn_auto_enroll_confirm"
         ):
             try:
-                join_subject_by_code(clean_code)
-            except Exception:
+                subject = join_subject_by_code(clean_code)
+            except Exception as exc:
+                if "join code not found" in str(exc).lower():
+                    st.error("❌ Join code not found. Ask your teacher for a fresh code.")
+                    return
                 st.error("Could not enroll you. Please try again.")
                 return
-            st.success("🎉 Joined successfully!")
+            if not subject:
+                st.error("❌ Join code not found. Ask your teacher for a fresh code.")
+                return
+            st.success(f"🎉 Joined {subject.get('name', 'the class')} successfully!")
             st.query_params.clear()
             st.rerun()

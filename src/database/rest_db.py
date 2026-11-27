@@ -78,13 +78,7 @@ def lookup_subject_by_join_code(join_code: str):
 def join_subject_by_code(join_code: str):
     if data_api_url():
         return _join_subject_by_code(join_code)
-    import streamlit as st
-
-    subject = _local_db.get_subject_by_join_code(join_code)
-    if subject:
-        student_id = st.session_state.student_data["student_id"]
-        _local_db.enroll_student_to_subject(student_id, subject["subject_id"])
-    return subject
+    return _local_db.enroll_student_by_join_code(join_code)
 
 
 def leave_subject(subject_id: str):

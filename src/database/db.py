@@ -106,6 +106,7 @@ __all__ = [
     "delete_subject",
     "check_pin_schema_guard",
     "get_subject_by_join_code",
+    "enroll_student_by_join_code",
     "get_subject_join_code",
     "is_student_enrolled",
     "get_enrolled_students",
@@ -602,6 +603,27 @@ def get_subject_by_join_code(join_code: str) -> Optional[Dict[str, Any]]:
         .execute()
     )
     return response.data[0] if response.data else None
+
+
+@db_retry_write
+def enroll_student_by_join_code(join_code: str) -> Optional[Dict[str, Any]]:
+    """Enroll the authenticated student through the ownership-checked RPC.
+
+    Students cannot select a subject they are not enrolled in under RLS,
+    so enrollment must not first query ``subjects`` by join code. The RPC
+    validates the secret and inserts the enrollment atomically.
+    """
+    if not isinstance(join_code, str) or not join_code.strip():
+        raise ValueError("join_code must be a non-empty string")
+    response = supabase.rpc(
+        "enroll_student_by_join_code", {"p_join_code": join_code.strip()}
+    ).execute()
+    data = response.data
+    if isinstance(data, dict):
+        return data or None
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0] or None
+    return None
 
 
 @db_retry_read()

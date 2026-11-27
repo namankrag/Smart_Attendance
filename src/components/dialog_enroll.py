@@ -3,16 +3,14 @@
 The join_code is NOT the human subject_code: subject_code is a display
 code (e.g. CS101) that sections can share, while join_code is the
 unguessable enrolment secret. Join codes are case-sensitive and are never
-upper-cased. All lookups go through ``src.database.db`` — no direct
-Supabase calls from this dialog.
+upper-cased. Enrollment goes through the authenticated database RPC so
+RLS can protect subjects from non-members while still allowing enrollment.
 """
 
 import streamlit as st
 
 from src.database.rest_db import (
-    is_student_enrolled,
     join_subject_by_code,
-    lookup_subject_by_join_code,
 )
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
@@ -67,29 +65,15 @@ def enroll_dialog():
             st.warning("⚠️ Please enter a valid join code.")
             return
         try:
-            subject = lookup_subject_by_join_code(clean_code)
-        except Exception:
-            st.error("Could not look up that join code. Please try again.")
+            subject = join_subject_by_code(clean_code)
+        except Exception as exc:
+            if "join code not found" in str(exc).lower():
+                st.error("❌ Join code not found. Double-check with your teacher.")
+                return
+            st.error("Could not enroll you. Please try again.")
             return
         if not subject:
             st.error("❌ Join code not found. Double-check with your teacher.")
-            return
-        stud_id = st.session_state.student_data["student_id"]
-        try:
-            already = (
-                is_student_enrolled(stud_id, subject["subject_id"])
-                if is_student_enrolled is not None
-                else None
-            )
-        except Exception:
-            already = None
-        if already:
-            st.warning("⚠️ You are already enrolled in this subject!")
-            return
-        try:
-            join_subject_by_code(clean_code)
-        except Exception:
-            st.error("Could not enroll you. Please try again.")
             return
         st.success(f"🎉 Successfully enrolled in {subject.get('name', 'the subject')}!")
         st.rerun()
