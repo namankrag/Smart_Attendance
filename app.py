@@ -87,6 +87,7 @@ def main():
         initial_sidebar_state="collapsed",
         layout="wide",
     )
+    st.session_state.setdefault("theme", "dark")
 
     def render_home():
         st.session_state["login_type"] = None
