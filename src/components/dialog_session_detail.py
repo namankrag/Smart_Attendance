@@ -11,7 +11,7 @@ import logging
 
 import streamlit as st
 
-from src.database.db import get_session_details, update_attendance_status
+from src.database.rest_db import get_session_details, update_attendance_status
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
@@ -119,6 +119,8 @@ def session_detail_dialog(subject_id, timestamp, subject_name, filter_type, teac
     for idx, record in enumerate(filtered):
         student = record.get("students") or {}
         name = student.get("name", "Unknown")
+        usn = student.get("usn")
+        display_name = f"{usn} — {name}" if usn else name
         log_id = record.get("id")
 
         col1, col2 = st.columns([3, 1], vertical_alignment="center")
@@ -129,7 +131,7 @@ def session_detail_dialog(subject_id, timestamp, subject_name, filter_type, teac
                     f'olid {row_border};'
                 f'color:{row_text};-webkit-text-fill-color:{row_text};font-family:DM Sans,sans-seri'
                     f'f;font-weight:800;font-size:1rem;">'
-                f"{icon}  {html.escape(str(name))}</div>"
+                f"{icon}  {html.escape(str(display_name))}</div>"
             )
         with col2:
             if is_present_view:

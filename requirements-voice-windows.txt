@@ -1,0 +1,4 @@
+# Windows-only legacy voice fallback: use prebuilt wheels and skip
+# Resemblyzer's webrtcvad source dependency, which otherwise needs MSVC.
+webrtcvad-wheels>=2.0.14.post1,<3
+resemblyzer>=0.1.2,<0.2

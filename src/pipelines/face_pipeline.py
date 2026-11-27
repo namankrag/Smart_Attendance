@@ -47,7 +47,7 @@ import streamlit as st
 import threading
 from typing import List, Dict, Tuple, Any, Optional
 
-from src.database.db import get_all_students, get_student_by_id
+from src.database.rest_db import get_all_students, get_student_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +232,7 @@ def find_duplicate_face_owner(
     """
     query = _normalised(np.asarray(query_embedding, dtype=np.float32).ravel())
     if query.shape[0] == 512:
-        from src.database.vector import match_faces as _rpc_match_faces
+        from src.database.rest_db import match_faces as _rpc_match_faces
 
         matches = _rpc_match_faces(None, query.tolist(), k=1)
         if matches:
@@ -740,6 +740,8 @@ def predict_attendance_batch(
     if not images_list:
         return all_detected_ids
 
+    analyzed_photos = 0
+    last_error: Optional[Exception] = None
     for idx, img in enumerate(images_list):
         try:
             if isinstance(img, PILImage.Image):
@@ -754,11 +756,27 @@ def predict_attendance_batch(
                 is_single_face=False,
                 candidate_ids=candidate_ids,
             )
+            analyzed_photos += 1
             if detected:
                 for sid in detected.keys():
                     all_detected_ids.setdefault(str(sid), []).append(f"Photo {idx + 1}")
-        except Exception:
+        except Exception as exc:
             # Log and continue with the next photo; never st.error() from pipeline code.
+            last_error = exc
             logger.exception("Error analyzing Photo %d; skipping it", idx + 1)
+
+    if analyzed_photos == 0 and last_error is not None:
+        if (
+            "PGRST202" in str(last_error)
+            and "get_authorized_student_profile" in str(last_error)
+        ):
+            raise RuntimeError(
+                "Face analysis cannot load student profiles: apply "
+                "migrations/007_student_self_enrollment.sql to the connected Supabase project, "
+                "then reload the PostgREST schema cache."
+            ) from last_error
+        raise RuntimeError(
+            "All classroom photos failed face analysis. Check the server logs and try again."
+        ) from last_error
 
     return all_detected_ids

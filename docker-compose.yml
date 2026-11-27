@@ -4,10 +4,10 @@
 # (Streamlit Cloud vs container; Cloud Run vs Render for the worker)
 # still needs Naman.
 #
-# Secrets are passed via environment (worker only) — see worker/README.md.
+# Worker secrets are passed via its environment — see worker/README.md.
 # Never commit real values: use a local .env file (gitignored) or your
-# host's secret store. HF_TOKEN and SUPABASE_SERVICE_ROLE_KEY must never
-# appear in the UI service's environment.
+# host's secret store. The UI receives only its Streamlit secrets file;
+# HF_TOKEN and SUPABASE_SERVICE_ROLE_KEY stay out of the UI container.
 services:
   ui:
     build:
@@ -16,11 +16,13 @@ services:
     ports:
       - "8501:8501"
     environment:
-      # The UI reaches the worker by service name inside the compose network.
+      # The UI reaches both REST data routes and ML jobs at the worker.
+      DATA_API_URL: http://worker:8000
       ML_WORKER_URL: http://worker:8000
-      # SUPABASE_URL / SUPABASE_ANON_KEY come from your .env (anon key only).
-    env_file:
-      - .env
+      # This must match the worker's .env value; it is not a Supabase key.
+      API_INTERNAL_TOKEN: ${API_INTERNAL_TOKEN:-}
+    volumes:
+      - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
     depends_on:
       worker:
         condition: service_healthy

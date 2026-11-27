@@ -17,7 +17,7 @@ from src.pipelines.face_pipeline import (
     train_classifier,
     validate_liveness,
 )
-from src.database.db import add_student_face_embedding
+from src.database.rest_db import add_student_face_embedding
 from src.screen.student_auth import (
     FACE_UPDATE_REAUTH_KEY,
     GENERIC_LOCKOUT_ERROR,
@@ -33,7 +33,7 @@ try:
     # Phase 3 (DPDP Act Sec. 9(1)): a KNOWN minor needs verifiable
     # parental consent before any new template is stored. Imported
     # defensively; a missing module fails the dialog closed.
-    from src.database.privacy import (
+    from src.database.rest_db import (
         get_student_dob,
         require_biometric_enrolment_allowed,
     )

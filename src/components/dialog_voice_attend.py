@@ -5,7 +5,7 @@ import pandas as pd
 import logging
 from datetime import datetime
 from src.pipelines.voice_pipeline import get_voice_embedding, process_bulk_audio
-from src.database.db import (
+from src.database.rest_db import (
     get_enrolled_students,
     get_subject_by_id,
     update_voice_embedding,

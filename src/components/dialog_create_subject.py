@@ -13,7 +13,7 @@ import logging
 
 import streamlit as st
 
-from src.database.db import create_subject
+from src.database.rest_db import create_subject
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 

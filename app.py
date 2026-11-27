@@ -88,6 +88,40 @@ def main():
         layout="wide",
     )
 
+    def render_home():
+        st.session_state["login_type"] = None
+        home_screen(student_page, teacher_page)
+
+    def render_student():
+        student_screen()
+
+    def render_teacher():
+        teacher_screen()
+
+    home_page = st.Page(
+        render_home,
+        title="SmartClass",
+        url_path="",
+        default=True,
+        visibility="hidden",
+    )
+    student_page = st.Page(
+        render_student,
+        title="Student Portal",
+        url_path="students",
+        visibility="hidden",
+    )
+    teacher_page = st.Page(
+        render_teacher,
+        title="Teacher Portal",
+        url_path="teachers",
+        visibility="hidden",
+    )
+    current_page = st.navigation(
+        [home_page, student_page, teacher_page],
+        position="hidden",
+    )
+
     _run_startup_schema_guard()
 
     # Root CSS reset to remove Streamlit's default white header and decoration banners
@@ -115,34 +149,47 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # Initialize fundamental session state keys
-    if "login_type" not in st.session_state:
-        st.session_state["login_type"] = None
+    # Keep the current URL and the legacy auth/session routing key in sync.
+    # Tracking the previous path lets portal logout and "Go to Home" actions
+    # return to the root route, while direct visits to /students or /teachers
+    # initialize the matching workspace.
+    current_route = current_page.url_path or ""
+    route_workspace = {"students": "student", "teachers": "teacher"}
+    workspace = route_workspace.get(current_route)
+    previous_route = st.session_state.get("_active_route")
+    if "login_type" not in st.session_state or current_route != previous_route:
+        st.session_state["login_type"] = workspace
+    elif workspace is not None and st.session_state.get("login_type") is None:
+        st.switch_page(home_page)
+    st.session_state["_active_route"] = current_route
+
     if "is_logged_in" not in st.session_state:
         st.session_state["is_logged_in"] = False
 
-    # Route according to workspace selection
-    current_workspace = st.session_state.get("login_type")
-    if current_workspace == "teacher":
-        teacher_screen()
-    elif current_workspace == "student":
-        student_screen()
-    else:
-        home_screen()
-
     # Handle join-code deep links (e.g. from QR codes or direct share links).
-    # Read the param once; clear it as soon as the auto-enroll dialog opens
-    # so the code does not linger in the URL / re-trigger on refresh.
+    # Keep the code in session state while routing so switching to /students
+    # does not lose it if Streamlit clears query parameters during navigation.
     join_code = st.query_params.get("join-code")
     if join_code:
-        if st.session_state.get("login_type") != "student":
+        st.session_state["_pending_join_code"] = join_code
+        if current_route != "students":
             st.session_state["login_type"] = "student"
-            st.rerun()
-        elif (
-            st.session_state.get("is_logged_in") and st.session_state.get("user_role") == "student"
-        ):
-            st.query_params.clear()
-            auto_enroll(join_code)
+            st.switch_page(student_page)
+
+    current_page.run()
+
+    # Wait until the student is authenticated before opening the enrollment
+    # dialog, then clear both the URL parameter and its session copy.
+    join_code = st.session_state.get("_pending_join_code") or st.query_params.get("join-code")
+    if (
+        join_code
+        and current_route == "students"
+        and st.session_state.get("is_logged_in")
+        and st.session_state.get("user_role") == "student"
+    ):
+        st.query_params.clear()
+        st.session_state.pop("_pending_join_code", None)
+        auto_enroll(join_code)
 
 
 if __name__ == "__main__":

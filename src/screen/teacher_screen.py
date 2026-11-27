@@ -17,7 +17,7 @@ import pandas as pd
 from src.ui.base_layout import style_bg_dashboard, style_base_layout, is_dark_theme
 from src.components.header import header_dashboard, theme_toggle
 from src.components.footer import footer_dashboard
-from src.database.db import (
+from src.database.rest_db import (
     get_teacher_subjects,
 )
 
@@ -25,13 +25,15 @@ from src.database.db import (
 # a missing collaborator degrades to a generic UI message, not a crash
 # or a direct-Supabase fallback.
 try:
-    from src.database.db import (
+    from src.database.rest_db import (
         teacher_login_with_rehash,
         update_teacher_password_hash,
         get_attendance_records,
         count_attendance_for_teacher,
         get_session_counts,
+        get_teacher_subject_attendance_roster,
         iter_attendance_csv,
+        delete_attendance_session,
     )
 except ImportError:  # pragma: no cover
     teacher_login_with_rehash = None  # type: ignore[assignment]
@@ -39,7 +41,9 @@ except ImportError:  # pragma: no cover
     get_attendance_records = None  # type: ignore[assignment]
     count_attendance_for_teacher = None  # type: ignore[assignment]
     get_session_counts = None  # type: ignore[assignment]
+    get_teacher_subject_attendance_roster = None  # type: ignore[assignment]
     iter_attendance_csv = None  # type: ignore[assignment]
+    delete_attendance_session = None  # type: ignore[assignment]
 
 try:
     from src.database.auth import hash_password
@@ -48,12 +52,21 @@ except ImportError:  # pragma: no cover
 
 try:
     from src.database.auth_session import (
+        SupabaseNonceMismatchError,
         require_google_login,
+        require_supabase_auth,
         clear_session_on_logout,
     )
 except ImportError:  # pragma: no cover
     require_google_login = None  # type: ignore[assignment]
+    require_supabase_auth = None  # type: ignore[assignment]
     clear_session_on_logout = None  # type: ignore[assignment]
+    SupabaseNonceMismatchError = RuntimeError  # type: ignore[assignment,misc]
+
+try:
+    from src.database.teacher_mfa import require_teacher_mfa
+except ImportError:  # pragma: no cover
+    require_teacher_mfa = None  # type: ignore[assignment]
 
 # Phase 1: one shared ISO-parsing helper (never crashes on bad input).
 from src.database.timeutil import format_iso_timestamp
@@ -67,18 +80,11 @@ from src.pipelines.face_pipeline import predict_attendance_batch
 from src.screen.teacher_jobs import present_attendance_result
 from src.components.dialog_voice_attend import voice_attendance
 from src.components.dialog_delete_subject import confirm_delete_subject
+from src.components.dialog_delete_attendance_session import confirm_delete_attendance_session
 from src.components.dialog_session_detail import session_detail_dialog
 
-# Phase 0 collaborators (db / roster agents). Imported defensively so a
-# missing collaborator degrades to a generic UI message, not a crash or a
-# direct-Supabase fallback.
 try:
-    from src.database.db import get_enrolled_students
-except ImportError:  # pragma: no cover
-    get_enrolled_students = None  # type: ignore[assignment]
-
-try:
-    from src.database.db import get_student_for_login
+    from src.database.rest_db import get_student_for_login
 except ImportError:  # pragma: no cover
     get_student_for_login = None  # type: ignore[assignment]
 
@@ -93,6 +99,7 @@ logger = logging.getLogger(__name__)
 SUBJECTS_PAGE_SIZE = 100
 ENROLLED_PAGE_SIZE = 500
 RECORDS_PAGE_SIZE = 200
+ROSTER_PAGE_SIZE = 100
 
 
 def _paginated(fn, *args, limit: int, offset: int = 0, **kwargs):
@@ -123,9 +130,28 @@ def teacher_screen():
         st.error("Sign-in is unavailable right now. Please try again later.")
         return
     require_google_login()
+    if require_supabase_auth is None:
+        st.error("Database sign-in is unavailable right now. Please try again later.")
+        return
+    try:
+        require_supabase_auth()
+    except SupabaseNonceMismatchError as exc:
+        logger.exception("Could not establish the Supabase teacher session")
+        st.error(str(exc))
+        return
+    except Exception:
+        logger.exception("Could not establish the Supabase teacher session")
+        st.error(
+            "Could not connect your Google sign-in to the attendance database. "
+            "Please check the Streamlit token settings and sign in again."
+        )
+        return
 
     style_bg_dashboard()
     style_base_layout()
+
+    if require_teacher_mfa is None or not require_teacher_mfa():
+        return
 
     if "teacher_data" in st.session_state:
         teacher_dashboard()
@@ -357,13 +383,13 @@ def take_attendance():
                 key="btn_analyze_faces",
             ):
                 with st.spinner("Executing facial feature extraction..."):
-                    if get_enrolled_students is None:
-                        logger.error("get_enrolled_students is unavailable")
+                    if get_teacher_subject_attendance_roster is None:
+                        logger.error("Teacher-safe attendance roster is unavailable")
                         st.error("Could not load enrolled students. Please try again.")
                     else:
                         try:
                             enrolled_stud = _paginated(
-                                get_enrolled_students,
+                                get_teacher_subject_attendance_roster,
                                 selected_sub_id,
                                 limit=ENROLLED_PAGE_SIZE,
                                 offset=0,
@@ -394,9 +420,15 @@ def take_attendance():
                                         candidate_ids=enrolled_sids,
                                         distance_threshold=0.38,
                                     )
-                                except Exception:
+                                except Exception as exc:
                                     logger.exception("Face attendance analysis failed")
-                                    st.error("Could not analyze the photos. Please try again.")
+                                    if "migrations/007_student_self_enrollment.sql" in str(exc):
+                                        st.error(str(exc))
+                                    else:
+                                        st.error(
+                                            "Could not analyze the photos. Check the server logs "
+                                            "and try again."
+                                        )
                                     all_detected_ids = None
                                 if all_detected_ids is not None:
                                     if not all_detected_ids:
@@ -514,6 +546,57 @@ def manage_subjects():
         )
 
 
+@st.dialog("Course Roster & Attendance", width="large")
+def subject_roster_attendance_dialog(subject_id: str, subject_name: str) -> None:
+    st.subheader(f"{subject_name} — Enrolled Students")
+    if get_teacher_subject_attendance_roster is None:
+        st.error("The course roster is unavailable. Please try again later.")
+        return
+
+    roster = []
+    offset = 0
+    try:
+        while True:
+            page = get_teacher_subject_attendance_roster(
+                subject_id, limit=ROSTER_PAGE_SIZE, offset=offset
+            )
+            roster.extend(page)
+            if len(page) < ROSTER_PAGE_SIZE:
+                break
+            offset += ROSTER_PAGE_SIZE
+    except Exception:
+        logger.exception("Failed to load subject roster and attendance")
+        st.error("Could not load the course roster. Ensure database migration 007 is applied.")
+        return
+
+    if not roster:
+        st.info("No students are enrolled in this course yet.")
+        return
+
+    st.caption(f"{len(roster)} enrolled student(s)")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Student": student["name"],
+                    "USN": student["usn"],
+                    "Present / Classes": (
+                        f"{student['present_classes']} / {student['total_classes']}"
+                    ),
+                    "Attendance %": (
+                        "—"
+                        if student["attendance_pct"] is None
+                        else f"{student['attendance_pct']:.2f}%"
+                    ),
+                }
+                for student in roster
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+
 def attendance_records():
     """Attendance Records — Phase 1: paginated, filterable, CSV export.
 
@@ -550,7 +633,8 @@ def attendance_records():
             f'ds</h1>'
         f'<p style="font-family:Outfit,sans-serif;color:{sub_color};font-size:0.92rem;margin:0;">'
         "Session breakdown across classes. Select Present or Absent on a session to "
-        "review or correct its student entries.</p>"
+        "review or correct its student entries. Delete Session removes that class "
+        "and its attendance records for every student.</p>"
         "</div>"
     )
 
@@ -646,6 +730,7 @@ def attendance_records():
             {
                 "raw_timestamp": ts,
                 "ts_group": ts.split(".")[0] if ts else None,
+                "session_id": r.get("session_id"),
                 "Time": format_iso_timestamp(ts),
                 "Subject": sub_info.get("name", "Unknown"),
                 "Subject Code": sub_info.get("subject_code", "N/A"),
@@ -656,7 +741,18 @@ def attendance_records():
 
     df = pd.DataFrame(data)
     summary = (
-        df.groupby(["raw_timestamp", "ts_group", "Time", "Subject", "Subject Code", "subject_id"])
+        df.groupby(
+            [
+                "session_id",
+                "raw_timestamp",
+                "ts_group",
+                "Time",
+                "Subject",
+                "Subject Code",
+                "subject_id",
+            ],
+            dropna=False,
+        )
         .agg(Present_Count=("is_present", "sum"), Total_Count=("is_present", "count"))
         .reset_index()
         .sort_values("raw_timestamp", ascending=False)
@@ -726,6 +822,9 @@ def attendance_records():
         total = int(row["Total_Count"])
         absent = total - present
         pct = int(present / total * 100) if total else 0
+        raw_session_id = row["session_id"]
+        session_id = None if pd.isna(raw_session_id) else str(raw_session_id)
+        session_key = session_id or str(row["ts_group"] or "unknown")
 
         bar_color = (
             "#4ade80"
@@ -792,10 +891,10 @@ def attendance_records():
         )
         st.html(card_html)
 
-        b1, b2, b3 = st.columns(3)
+        b1, b2, b3, b4 = st.columns(4)
         with b1:
             if st.button(
-                f"✅ {present} Present", key=f"pres_{row['subject_id']}_{row['ts_group']}"
+                f"✅ {present} Present", key=f"pres_{row['subject_id']}_{session_key}"
             ):
                 session_detail_dialog(
                     int(row["subject_id"])
@@ -809,7 +908,7 @@ def attendance_records():
         with b2:
             if st.button(
                 f"❌ {absent} Absent",
-                key=f"abs_{row['subject_id']}_{row['ts_group']}",
+                key=f"abs_{row['subject_id']}_{session_key}",
                 type="secondary",
             ):
                 session_detail_dialog(
@@ -822,11 +921,39 @@ def attendance_records():
                     teacher_id=teacher_id,
                 )
         with b3:
-            st.html(
-                f'<div style="text-align:center;padding:8px 12px;border-radius:20px;font-size:0.82r'
-                    f'em;font-weight:600;font-family:Outfit,sans-serif;background:{card_bg};border:'
-                    f'1px solid #334155;">👥 {total} Total</div>'
-            )
+            if st.button(
+                f"👥 {total} Total",
+                key=f"tot_{row['subject_id']}_{session_key}",
+                type="secondary",
+                width="stretch",
+            ):
+                subject_roster_attendance_dialog(
+                    str(row["subject_id"]), str(row["Subject"])
+                )
+        with b4:
+            if not session_id or delete_attendance_session is None:
+                st.button(
+                    "🗑 Delete Session",
+                    disabled=True,
+                    help=(
+                        "This session cannot be deleted because its session ID is unavailable."
+                        if not session_id
+                        else "Session deletion is unavailable right now."
+                    ),
+                    key=f"delete_session_unavailable_{row['subject_id']}_{session_key}",
+                )
+            elif st.button(
+                "🗑 Delete Session",
+                type="secondary",
+                width="stretch",
+                key=f"delete_session_{row['subject_id']}_{session_key}",
+            ):
+                confirm_delete_attendance_session(
+                    str(session_id),
+                    str(row["Subject"]),
+                    str(row["Time"]),
+                    teacher_id,
+                )
 
     # --- Pagination controls (Phase 1) --------------------------------------
     p_col1, p_col2, p_col3 = st.columns([1, 2, 1])

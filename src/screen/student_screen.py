@@ -16,6 +16,7 @@ evaluated.
 import html
 import io
 import logging
+from datetime import date
 from typing import Any, Dict, List
 
 import streamlit as st
@@ -29,19 +30,21 @@ from src.pipelines.face_pipeline import (
     train_classifier,
     validate_liveness,
 )
-from src.database.db import (
+from src.database.rest_db import (
+    authenticate_student,
     create_student,
     get_student_subjects,
     get_student_attendance,
-    unenroll_student_to_subject,
 )
+from src.database.rest_db import leave_subject
+from src.ui.data_api import DataApiError, data_api_url
 
 # --- Phase 0 collaborators (provided by the db / pipeline agents) --------
 # Imported defensively: if any of these is not present yet, the handlers
 # below fail closed (generic error, no login) instead of falling back to
 # an insecure path. Do NOT replace these with a local stub.
 try:
-    from src.database.db import (
+    from src.database.rest_db import (
         get_student_for_login,
         check_login_allowed,
         record_login_attempt,
@@ -60,15 +63,21 @@ except ImportError:  # pragma: no cover - auth module has not landed yet
 
 try:
     # Phase 1 rehash write-back helper (db agent).
-    from src.database.db import update_student_pin_hash
+    from src.database.rest_db import update_student_pin_hash
 except ImportError:  # pragma: no cover
     update_student_pin_hash = None  # type: ignore[assignment]
 
 try:
     # Phase 1 Google-first gate (auth_session agent).
-    from src.database.auth_session import require_google_login
+    from src.database.auth_session import (
+        SupabaseNonceMismatchError,
+        require_google_login,
+        require_supabase_auth,
+    )
 except ImportError:  # pragma: no cover
     require_google_login = None  # type: ignore[assignment]
+    require_supabase_auth = None  # type: ignore[assignment]
+    SupabaseNonceMismatchError = RuntimeError  # type: ignore[assignment,misc]
 
 # Phase 1: one shared ISO-parsing helper (never crashes on bad input).
 # Kept deliberately even though unused here: test_student_screen_uses_shared_parser
@@ -94,7 +103,7 @@ try:
     from src.pipelines.face_pipeline import find_duplicate_face_owner
 except ImportError:  # pragma: no cover
     try:
-        from src.database.db import find_duplicate_face_owner  # type: ignore[assignment]
+        from src.database.rest_db import find_duplicate_face_owner  # type: ignore[assignment]
     except ImportError:
         find_duplicate_face_owner = None  # type: ignore[assignment]
 
@@ -104,7 +113,7 @@ try:
     # "Delete My Biometric Data". Imported defensively: if the module
     # is unavailable the privacy UI degrades to an error message
     # instead of silently enrolling without consent.
-    from src.database.privacy import (
+    from src.database.rest_db import (
         PRIVACY_NOTICE_TEXT,
         PRIVACY_NOTICE_VERSION,
         GRIEVANCE_CONTACT,
@@ -137,9 +146,8 @@ try:
 except ImportError:  # pragma: no cover - voice pipeline not available
     get_voice_embedding = None  # type: ignore[assignment]
 
-# Phase 2 split: auth/session helpers live in student_auth.py, the
-# face-update dialog in student_face_dialog.py; re-exported here so
-# existing imports keep working.
+# Phase 2 split: auth/session helpers live in student_auth.py and remain
+# re-exported here so existing imports keep working.
 from src.screen.student_auth import (  # noqa: E402, F401
     FACE_UPDATE_REAUTH_KEY,
     GENERIC_LOCKOUT_ERROR,
@@ -157,7 +165,6 @@ from src.screen.student_auth import (  # noqa: E402, F401
     _verify_pin,
     clear_student_session,
 )
-from src.screen.student_face_dialog import add_face_scan_dialog  # noqa: E402, F401
 
 
 def _log_session_timestamp(log: Dict[str, Any]) -> Any:
@@ -195,17 +202,6 @@ def student_dashboard():
             </div>""",
             unsafe_allow_html=True,
         )
-        st.divider()
-        st.caption("BIOMETRIC SETTINGS")
-        if st.button(
-            "Add Extra Face Scan",
-            type="primary",
-            icon=":material/face:",
-            width="stretch",
-            key="btn_add_face_scan",
-        ):
-            add_face_scan_dialog(stud_id)
-
         st.divider()
         st.caption("ACCOUNT")
         if st.button(
@@ -406,7 +402,7 @@ def student_dashboard():
                     key=f"unenroll_confirm_{bound_sid}",
                 ):
                     try:
-                        result = unenroll_student_to_subject(stud_id, bound_sid)
+                        result = leave_subject(bound_sid)
                     except Exception:
                         logger.exception("Unenroll failed for student %s", stud_id)
                         st.error("Could not unenroll. Please try again.")
@@ -534,6 +530,20 @@ def _handle_pin_login(identifier: str, pin: str) -> None:
     if not identifier or not pin:
         st.warning("Please fill in Student ID/USN and PIN.")
         return
+    if data_api_url():
+        try:
+            student = authenticate_student(identifier, pin)
+        except DataApiError as exc:
+            if "too many failed attempts" in str(exc).lower():
+                st.error(GENERIC_LOCKOUT_ERROR)
+            else:
+                logger.info("PIN login rejected for %s", identifier)
+                st.error(GENERIC_LOGIN_ERROR)
+            return
+        _set_student_session(student)
+        st.toast(f"Welcome back, {student.get('name', 'Student')}!")
+        st.rerun()
+        return
     try:
         allowed, _retry = _login_allowed(identifier, "pin")
     except Exception:
@@ -605,6 +615,22 @@ def student_screen():
         st.error("Sign-in is unavailable right now. Please try again later.")
         return
     require_google_login()
+    if require_supabase_auth is None:
+        st.error("Database sign-in is unavailable right now. Please try again later.")
+        return
+    try:
+        require_supabase_auth()
+    except SupabaseNonceMismatchError as exc:
+        logger.exception("Could not establish the Supabase student session")
+        st.error(str(exc))
+        return
+    except Exception:
+        logger.exception("Could not establish the Supabase student session")
+        st.error(
+            "Could not connect your Google sign-in to the attendance database. "
+            "Please check the Streamlit token settings and sign in again."
+        )
+        return
 
     style_bg_dashboard()
     style_base_layout()
@@ -805,7 +831,9 @@ def student_screen():
                 reg_dob = st.date_input(
                     "Date of birth (to check whether a parent/guardian must also consent)",
                     value=None,
-                    key="reg_stud_dob",
+                    min_value=date(1990, 1, 1),
+                    max_value=date.today(),
+                    key="reg_stud_dob_1990",
                 )
                 reg_adult = st.checkbox(
                     "I confirm I am 18 or older",
@@ -867,8 +895,8 @@ def student_screen():
                             "You are under 18 (or your age could not be confirmed), "
                             "so no face/voice template can be stored until a parent "
                             "or guardian gives consent in person to your teacher. "
-                            "Creating a PIN-only account instead — you can add a "
-                            "face scan later from the sidebar."
+                            "Creating a PIN-only account instead. You can continue "
+                            "using Student ID and PIN."
                         )
                         try:
                             _created = create_student(

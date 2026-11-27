@@ -40,7 +40,7 @@ class MemoryJobStore:
         return True
 
     def create_job(self, job_type: str, *, subject_id=None,
-                   candidate_ids=None, metadata=None) -> Dict[str, Any]:
+                   candidate_ids=None, metadata=None, created_by=None) -> Dict[str, Any]:
         if job_type not in JOB_TYPES:
             raise ValueError(f"unknown job type: {job_type!r}")
         job_id = str(uuid.uuid4())
@@ -49,6 +49,7 @@ class MemoryJobStore:
             "result_json": {}, "error": None,
             "subject_id": subject_id, "candidate_ids": list(candidate_ids or []),
             "metadata": dict(metadata or {}),
+            "created_by": created_by,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "expires_at": None,
         }
@@ -114,7 +115,7 @@ class PostgresJobStore:
             conn.close()
 
     def create_job(self, job_type: str, *, subject_id=None,
-                   candidate_ids=None, metadata=None) -> Dict[str, Any]:
+                   candidate_ids=None, metadata=None, created_by=None) -> Dict[str, Any]:
         if job_type not in JOB_TYPES:
             raise ValueError(f"unknown job type: {job_type!r}")
         conn = self._conn_factory()
@@ -122,9 +123,9 @@ class PostgresJobStore:
             cur = conn.cursor()
             try:
                 cur.execute(
-                    "INSERT INTO inference_jobs (type, status, progress, result_json) "
-                    "VALUES (%s, 'queued', 0, '{}'::jsonb) RETURNING id",
-                    (job_type,),
+                    "INSERT INTO inference_jobs (type, status, progress, result_json, created_by) "
+                    "VALUES (%s, 'queued', 0, '{}'::jsonb, %s) RETURNING id",
+                    (job_type, created_by),
                 )
                 row = cur.fetchone()
                 job_id = row[0] if isinstance(row, (list, tuple)) else row["id"]
@@ -136,6 +137,7 @@ class PostgresJobStore:
         return {"id": str(job_id), "type": job_type, "status": "queued",
                 "progress": 0, "result_json": {}, "error": None,
                 "subject_id": subject_id,
+                "created_by": created_by,
                 "candidate_ids": list(candidate_ids or []),
                 "metadata": dict(metadata or {})}
 
@@ -161,7 +163,7 @@ class PostgresJobStore:
             try:
                 cur.execute(
                     "SELECT id, type, status, progress, result_json, error, "
-                    "created_at, expires_at FROM inference_jobs WHERE id = %s",
+                    "created_at, expires_at, created_by FROM inference_jobs WHERE id = %s",
                     (job_id,),
                 )
                 row = cur.fetchone()

@@ -30,6 +30,7 @@ RUN ls /models/scrfd_10g_bnkps.onnx /models/arcface_r100.onnx \
        /models/minifasnet.onnx /models/aasist.onnx
 
 COPY worker ./worker
+COPY src ./src
 
 EXPOSE 8000
 

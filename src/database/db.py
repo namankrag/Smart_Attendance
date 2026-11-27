@@ -102,6 +102,7 @@ __all__ = [
     "get_attendance_for_teacher",
     "get_session_details",
     "update_attendance_status",
+    "delete_attendance_session",
     "delete_subject",
     "check_pin_schema_guard",
     "get_subject_by_join_code",
@@ -124,6 +125,7 @@ __all__ = [
     "count_attendance_for_teacher",
     "get_session_counts",
     "get_attendance_percentage",
+    "get_teacher_subject_attendance_roster",
     "iter_attendance_csv",
 ]
 
@@ -231,7 +233,9 @@ def check_teacher_exists(username: str) -> bool:
 
 
 @db_retry_write
-def create_teacher(username: str, password: str, name: str) -> List[Dict[str, Any]]:
+def create_teacher(
+    username: str, password: str, name: str, *, auth_user_id: Optional[str] = None
+) -> List[Dict[str, Any]]:
     username = username.strip().lower()
     name = name.strip()
     if not username:
@@ -250,6 +254,8 @@ def create_teacher(username: str, password: str, name: str) -> List[Dict[str, An
         "password": hash_password(password),
         "name": name,
     }
+    if auth_user_id is not None:
+        data["auth_user_id"] = _require_id(auth_user_id, "auth_user_id")
     response = supabase.table("teachers").insert(data).execute()
     return response.data or []
 
@@ -349,16 +355,17 @@ def get_student_by_usn(usn: str) -> Optional[Dict[str, Any]]:
 
 @db_retry_read()
 def get_student_by_id(student_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch a student by UUID. Explicit columns; does NOT return pin_hash."""
+    """Fetch a student profile visible to this user, without the PIN hash."""
     student_id = _require_id(student_id, "student_id")
-    response = (
-        supabase.table("students")
-        .select(_STUDENT_PROFILE_COLUMNS)
-        .eq("student_id", student_id)
-        .limit(1)
-        .execute()
-    )
-    return response.data[0] if response.data else None
+    response = supabase.rpc(
+        "get_authorized_student_profile", {"p_student_id": student_id}
+    ).execute()
+    data = response.data
+    if isinstance(data, dict):
+        return data or None
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0] or None
+    return None
 
 
 @db_retry_read()
@@ -397,6 +404,7 @@ def create_student(
     *,
     pin: str,
     usn: Optional[str] = None,
+    auth_user_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Register a student. ``pin`` is REQUIRED (keyword-only).
 
@@ -421,6 +429,14 @@ def create_student(
     }
     if usn is not None:
         data["usn"] = validate_usn(usn)
+    # FastAPI passes its already-validated user ID. In the native Streamlit
+    # flow, derive it from the current Supabase session instead.
+    if auth_user_id is None:
+        from src.database.auth_session import get_supabase_user_id
+
+        auth_user_id = get_supabase_user_id()
+    if auth_user_id:
+        data["auth_user_id"] = _require_id(auth_user_id, "auth_user_id")
     response = supabase.table("students").insert(data).execute()
     return response.data or []
 
@@ -629,16 +645,10 @@ def get_enrolled_students(
     ``subject_students`` has no ``id`` column — do not select it."""
     subject_id = _require_id(subject_id, "subject_id")
     limit, offset = _validate_pagination(limit, offset)
-    response = (
-        supabase.table("subject_students")
-        .select(
-            "student_id, subject_id, enrolled_at, "
-            "students(student_id, usn, name, face_embedding, voice_embedding)"
-        )
-        .eq("subject_id", subject_id)
-        .range(offset, offset + limit - 1)
-        .execute()
-    )
+    response = supabase.rpc(
+        "get_teacher_subject_roster",
+        {"p_subject_id": subject_id, "p_limit": limit, "p_offset": offset},
+    ).execute()
     return response.data or []
 
 
@@ -953,16 +963,10 @@ def get_session_details(
     if not timestamp:
         raise ValueError("timestamp cannot be empty")
     _verify_subject_owner(subject_id, teacher_id)
-    response = (
-        supabase.table("attendance_logs")
-        .select(
-            "id, session_id, student_id, subject_id, timestamp, is_present, "
-            "students(student_id, usn, name)"
-        )
-        .eq("subject_id", subject_id)
-        .eq("timestamp", timestamp)
-        .execute()
-    )
+    response = supabase.rpc(
+        "get_teacher_session_details",
+        {"p_subject_id": subject_id, "p_timestamp": timestamp},
+    ).execute()
     return response.data or []
 
 
@@ -986,6 +990,36 @@ def update_attendance_status(
         .execute()
     )
     return response.data or []
+
+
+@db_retry_write
+def delete_attendance_session(session_id: str, *, teacher_id: str) -> Dict[str, str]:
+    """Delete one teacher-owned session and cascade its student attendance rows.
+
+    ``teacher_id`` is REQUIRED (keyword-only). Ownership is checked against
+    the session's subject before deleting it. The database foreign key from
+    ``attendance_logs.session_id`` uses ``ON DELETE CASCADE``, so the session
+    and every student's attendance row are removed atomically.
+    """
+    session_id = _require_id(session_id, "session_id")
+    teacher_id = _require_id(teacher_id, "teacher_id")
+    response = (
+        supabase.table("attendance_sessions")
+        .select("session_id, subject_id")
+        .eq("session_id", session_id)
+        .limit(1)
+        .execute()
+    )
+    if not response.data:
+        raise ValueError("attendance session not found")
+
+    subject_id = response.data[0].get("subject_id")
+    if not subject_id:
+        raise RuntimeError("attendance session has no subject")
+    _verify_subject_owner(str(subject_id), teacher_id)
+
+    supabase.table("attendance_sessions").delete().eq("session_id", session_id).execute()
+    return {"session_id": session_id, "subject_id": str(subject_id)}
 
 
 @db_retry_write
@@ -1343,6 +1377,56 @@ def get_attendance_percentage(student_id: str, subject_id: str) -> Dict[str, Any
         "present_classes": int(row.get("present_classes") or 0),
         "attendance_pct": None if pct is None else float(pct),
     }
+
+
+@db_retry_read()
+def get_teacher_subject_attendance_roster(
+    subject_id: str,
+    *,
+    limit: int = DEFAULT_PAGE_SIZE,
+    offset: int = 0,
+) -> List[Dict[str, Any]]:
+    """Return one page of a teacher-owned roster with SQL attendance totals.
+
+    Student identity comes from the ownership-checked migration 007 RPC;
+    attendance totals come from ``v_attendance_percentages`` (migration 004).
+    """
+    subject_id = _require_id(subject_id, "subject_id")
+    limit, offset = _validate_pagination(limit, offset)
+    roster = supabase.rpc(
+        "get_teacher_subject_roster",
+        {"p_subject_id": subject_id, "p_limit": limit, "p_offset": offset},
+    ).execute().data or []
+    student_ids = [row.get("student_id") for row in roster if row.get("student_id")]
+    if not student_ids:
+        return []
+
+    percentages = (
+        supabase.table("v_attendance_percentages")
+        .select("student_id, total_classes, present_classes, attendance_pct")
+        .eq("subject_id", subject_id)
+        .in_("student_id", student_ids)
+        .execute()
+        .data
+        or []
+    )
+    by_student = {row["student_id"]: row for row in percentages}
+    result = []
+    for row in roster:
+        student = row.get("students") or {}
+        stats = by_student.get(row.get("student_id"), {})
+        pct = stats.get("attendance_pct")
+        result.append(
+            {
+                "student_id": row.get("student_id"),
+                "name": student.get("name") or "",
+                "usn": student.get("usn") or "",
+                "total_classes": int(stats.get("total_classes") or 0),
+                "present_classes": int(stats.get("present_classes") or 0),
+                "attendance_pct": None if pct is None else float(pct),
+            }
+        )
+    return result
 
 
 def iter_attendance_csv(

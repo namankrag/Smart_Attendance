@@ -14,10 +14,13 @@ Endpoints
   randomised, short-lived, single-use active challenge (PAD / voice).
 * ``POST /verify/face-1to1`` / ``POST /verify/voice-1to1`` — 1:1
   verification with liveness / anti-spoofing (fail closed).
+* ``/api/v1/*`` — Supabase-JWT-authenticated student, teacher, subject
+  and attendance REST endpoints (see ``worker/README.md``).
 
 The app never downloads models at runtime and never touches the
-Streamlit session. ``service_role`` (gallery loading) lives here in
-the worker environment only — never in the UI.
+Streamlit session. The ``service_role`` key stays in the worker
+environment for gallery loading and a small set of protected REST
+operations — never in the UI.
 """
 
 from __future__ import annotations
@@ -70,12 +73,17 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
     from worker.face_onnx import ModelUnavailableError, ONNXFacePipeline
     from worker.gallery import GalleryLoader
     from worker.pad import LivenessVerifier
+    from worker.rate_limit import RequestRateLimiter
     from worker.runner import decode_wav_bytes, process_one_job
     from worker.stores import MemoryJobStore, PostgresJobStore
     from worker.voice_onnx import ECAPAEmbedder, Diarizer, VoiceVerifier
 
     cfg = config or get_config()
     app = FastAPI(title="Smart Attendance ML worker")
+    if hasattr(app, "include_router"):
+        from worker.rest_api import install_rest_api
+
+        install_rest_api(app, cfg)
     app.state.payloads: Dict[str, bytes] = {}
 
     if store is None:
@@ -90,11 +98,93 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
     # Lazy pipeline singletons (models load on first use, fail loudly).
     _ctx: Dict[str, Any] = dict(ctx or {})
     _ctx.setdefault("config", cfg)
+    app.state.rate_limiter = _ctx.get("rate_limiter") or RequestRateLimiter()
 
     def _get(name, factory):
         if name not in _ctx:
             _ctx[name] = factory()
         return _ctx[name]
+
+    def _supabase_client():
+        if not cfg.supabase_url or not cfg.supabase_service_role_key:
+            raise HTTPException(status_code=503, detail="Supabase is not configured")
+        try:
+            from supabase import create_client
+            return _get("supabase_client", lambda: create_client(
+                cfg.supabase_url, cfg.supabase_service_role_key))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="Supabase is unavailable") from exc
+
+    def _authenticated_user_id(request: Request) -> str:
+        # Test/deployment adapters may inject a verifier, but production
+        # validates the bearer token against Supabase Auth.
+        verifier = _ctx.get("authenticate_user")
+        if callable(verifier):
+            user_id = verifier(request)
+            if user_id:
+                return str(user_id)
+            raise HTTPException(status_code=401, detail="authentication required")
+
+        authorization = request.headers.get("authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token.strip():
+            raise HTTPException(status_code=401, detail="authentication required")
+        try:
+            response = _supabase_client().auth.get_user(token.strip())
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="invalid access token") from exc
+        user = getattr(response, "user", None)
+        user_id = getattr(user, "id", None)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="invalid access token")
+        # get_user() has already validated this exact JWT with Supabase Auth.
+        # Only then trust its AAL claim for the privileged teacher job API.
+        try:
+            payload = token.strip().split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (IndexError, TypeError, ValueError, binascii.Error) as exc:
+            raise HTTPException(status_code=401, detail="invalid access token") from exc
+        if claims.get("aal") != "aal2":
+            raise HTTPException(status_code=403, detail="multi-factor authentication required")
+        return str(user_id)
+
+    def _owns_subject(user_id: str, subject_id: str) -> bool:
+        checker = _ctx.get("owns_subject")
+        if callable(checker):
+            return bool(checker(user_id, subject_id))
+        client = _supabase_client()
+        try:
+            teachers = client.table("teachers").select("teacher_id").eq(
+                "auth_user_id", user_id).execute().data or []
+            teacher_ids = [row["teacher_id"] for row in teachers]
+            if not teacher_ids:
+                return False
+            subjects = client.table("subjects").select("subject_id").eq(
+                "subject_id", subject_id).in_("teacher_id", teacher_ids).execute().data or []
+            return bool(subjects)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503, detail="Could not verify subject ownership") from exc
+
+    def _enforce_rate_limit(request: Request, scope: str, limit: int,
+                            *, identity: Optional[str] = None) -> None:
+        if identity is not None:
+            key = f"{scope}:user:{identity}"
+        else:
+            client = getattr(request, "client", None)
+            key = f"{scope}:ip:{getattr(client, 'host', None) or 'unknown'}"
+        retry_after = app.state.rate_limiter.retry_after(key, limit, 60)
+        if retry_after:
+            raise HTTPException(
+                status_code=429,
+                detail="too many requests; try again later",
+                headers={"Retry-After": str(retry_after)},
+            )
 
     def _audit_template_access(event: Dict[str, Any]) -> None:
         """Phase 3: write one template-access audit row to audit_log.
@@ -199,6 +289,8 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
     # -- jobs -----------------------------------------------------------
     @app.post("/jobs", status_code=202)
     async def submit_job(request: Request, background_tasks: BackgroundTasks):
+        user_id = _authenticated_user_id(request)
+        _enforce_rate_limit(request, "jobs", 5, identity=user_id)
         try:
             body = await request.json()
         except Exception as exc:
@@ -207,12 +299,17 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
         if job_type not in ("face", "voice"):
             raise HTTPException(
                 status_code=400, detail="type must be 'face' or 'voice'")
+        subject_id = body.get("subject_id")
+        if not subject_id:
+            raise HTTPException(status_code=400, detail="subject_id is required")
+        if not _owns_subject(user_id, str(subject_id)):
+            raise HTTPException(status_code=403, detail="not authorized for this subject")
         try:
             payload = _decode_b64(body.get("payload_b64"), cfg.max_payload_bytes)
         except ValueError as exc:
             raise HTTPException(status_code=413, detail=str(exc)) from exc
         job = store.create_job(
-            job_type, subject_id=body.get("subject_id"),
+            job_type, subject_id=subject_id, created_by=user_id,
             candidate_ids=body.get("candidate_ids") or [],
             metadata=body.get("metadata") or {})
         job_id = str(job["id"])
@@ -239,25 +336,29 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
             logger.exception("background job processing failed for %s", job_id)
 
     @app.get("/jobs/{job_id}")
-    def get_job(job_id: str):
+    def get_job(job_id: str, request: Request):
+        user_id = _authenticated_user_id(request)
         job = store.get_job(job_id)
-        if job is None:
+        if job is None or str(job.get("created_by") or "") != user_id:
             raise HTTPException(status_code=404, detail="job not found")
         return _public_job(job)
 
     # -- challenges + 1:1 verification ----------------------------------
     @app.post("/challenges/face")
-    def issue_face_challenge():
+    def issue_face_challenge(request: Request):
+        _enforce_rate_limit(request, "challenges", 20)
         chal = _liveness().issue_challenge()
         return {"id": chal.id, "kind": chal.kind, "expires_at": chal.expires_at}
 
     @app.post("/challenges/voice")
-    def issue_voice_challenge():
+    def issue_voice_challenge(request: Request):
+        _enforce_rate_limit(request, "challenges", 20)
         chal = _voice_verifier().issue_challenge()
         return {"id": chal.id, "phrase": chal.phrase, "expires_at": chal.expires_at}
 
     @app.post("/verify/face-1to1")
     async def verify_face_1to1(request: Request):
+        _enforce_rate_limit(request, "verify-face", 5)
         try:
             body = await request.json()
         except Exception as exc:
@@ -302,6 +403,7 @@ def create_app(config=None, store=None, ctx: Optional[Dict[str, Any]] = None):
 
     @app.post("/verify/voice-1to1")
     async def verify_voice_1to1(request: Request):
+        _enforce_rate_limit(request, "verify-voice", 5)
         try:
             body = await request.json()
         except Exception as exc:

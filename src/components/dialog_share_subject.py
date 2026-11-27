@@ -18,7 +18,7 @@ from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 
 try:
-    from src.database.db import get_subject_join_code
+    from src.database.rest_db import get_subject_join_code
 except ImportError:  # pragma: no cover - db agent has not landed yet
     get_subject_join_code = None  # type: ignore[assignment]
 

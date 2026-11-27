@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover - light UI image has no resemblyzer
         raise RuntimeError(
             "Legacy Resemblyzer voice models are not installed in this "
             "image. Use the Phase 2 ML worker (POST /jobs) or install "
-            "the legacy stack from requirements.txt for local dev."
+            "requirements.txt and requirements-voice-windows.txt for local dev."
         )
 
 
@@ -57,7 +57,7 @@ def load_voice_encoder() -> VoiceEncoder:
         raise RuntimeError(
             "Legacy Resemblyzer voice models are not installed in this "
             "image. Use the Phase 2 ML worker (POST /jobs) or install "
-            "the legacy stack from requirements.txt for local dev."
+            "requirements.txt and requirements-voice-windows.txt for local dev."
         )
     return VoiceEncoder()
 

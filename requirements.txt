@@ -1,6 +1,8 @@
 # Smart Attendance — Python 3.11.
 # Pinned (compatible ranges) so installs are reproducible on 3.11.
 # Phase 0 legacy stack: dlib / resemblyzer are kept as-is.
+# On Windows, install the prebuilt voice fallback from
+# requirements-voice-windows.txt after this file.
 # Do NOT add torch / onnxruntime / pyannote here — those are Phase 2.
 # scikit-learn was removed: no code in the repo imports sklearn/scipy-learn
 # (verified 2026-11-22); scipy is used directly and is listed below.
@@ -16,6 +18,8 @@ pandas>=2.1,<3
 setuptools>=68
 scipy>=1.11,<2
 httpx>=0.27,<1
+httpx2>=2.16,<3
+torch>=2.0,<3; sys_platform == "win32"
 
 # Face Recognition
 dlib-bin>=19.24,<20
@@ -33,4 +37,4 @@ pillow>=10.0,<11
 
 
 librosa>=0.10,<0.11
-resemblyzer>=0.1.2,<0.2
+resemblyzer>=0.1.2,<0.2; sys_platform != "win32"

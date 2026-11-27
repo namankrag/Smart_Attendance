@@ -14,17 +14,14 @@ import html
 
 import streamlit as st
 
-from src.database.db import enroll_student_to_subject
+from src.database.rest_db import (
+    is_student_enrolled,
+    join_subject_by_code,
+    lookup_subject_by_join_code,
+)
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 from src.ui.join_codes import validate_join_code as _validate_join_code_v2
-
-try:
-    from src.database.db import get_subject_by_join_code, is_student_enrolled
-except ImportError:  # pragma: no cover - db agent has not landed yet
-    get_subject_by_join_code = None  # type: ignore[assignment]
-    is_student_enrolled = None  # type: ignore[assignment]
-
 
 def validate_join_code(raw: str) -> str | None:
     """URL-decode and validate a join code. Returns the clean code or None.
@@ -47,7 +44,7 @@ def auto_enroll(join_code: str):
     clean_code = validate_join_code(join_code or "")
     dark = is_dark_theme()
 
-    if not clean_code or get_subject_by_join_code is None:
+    if not clean_code:
         dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
         st.error("❌ Join code not found!")
         if st.button("Close", key="btn_close_not_found"):
@@ -56,7 +53,7 @@ def auto_enroll(join_code: str):
         return
 
     try:
-        subject = get_subject_by_join_code(clean_code)
+        subject = lookup_subject_by_join_code(clean_code)
     except Exception:
         dialog_banner("Not Found", subtitle="This join code does not exist", theme="pink")
         st.error("❌ Join code not found!")
@@ -138,7 +135,7 @@ def auto_enroll(join_code: str):
             "🚀  Yes, Enroll!", type="primary", width="stretch", key="btn_auto_enroll_confirm"
         ):
             try:
-                enroll_student_to_subject(stud_id, subject["subject_id"])
+                join_subject_by_code(clean_code)
             except Exception:
                 st.error("Could not enroll you. Please try again.")
                 return

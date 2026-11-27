@@ -32,9 +32,9 @@ from src.ui.fragments import JOB_RESULT_KEY
 from src.ui.worker_client import WorkerClient
 
 try:
-    from src.database.db import get_enrolled_students
+    from src.database.rest_db import get_teacher_subject_attendance_roster
 except ImportError:  # pragma: no cover
-    get_enrolled_students = None  # type: ignore[assignment]
+    get_teacher_subject_attendance_roster = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +99,16 @@ def present_attendance_result(enrolled_stud: List[Dict[str, Any]],
         stud = _student_from_enrollment_node(node)
         if not stud:
             continue
-        sid = stud["student_id"]
+        sid = stud.get("student_id") or node.get("student_id")
+        if sid is None:
+            logger.warning("Skipping attendance result without a student ID")
+            continue
         sources = all_detected_ids.get(sid, []) or all_detected_ids.get(str(sid), [])
         is_present = len(sources) > 0
 
         res_rows.append({
-            "Name": stud["name"],
+            "Name": stud.get("name") or node.get("name") or "Unknown",
+            "USN": stud.get("usn") or node.get("usn") or "—",
             "ID": sid,
             "Source": ", ".join(sources) if is_present else "-",
             "Status": "✅ Present" if is_present else "❌ Absent"
@@ -132,13 +136,13 @@ def render_completed_worker_job(selected_sub_id: str, selected_label: str) -> bo
         st.error("The ML worker could not analyze the photos. Please try again.")
         return True
     detected = (result.get("result") or {}).get("detected") or {}
-    if get_enrolled_students is None:
-        logger.error("get_enrolled_students is unavailable")
+    if get_teacher_subject_attendance_roster is None:
+        logger.error("Teacher-safe attendance roster is unavailable")
         st.error("Could not load enrolled students. Please try again.")
         return True
     try:
         enrolled_stud = _paginated(
-            get_enrolled_students, selected_sub_id,
+            get_teacher_subject_attendance_roster, selected_sub_id,
             limit=ENROLLED_PAGE_SIZE, offset=0)
     except Exception:
         logger.exception("Failed to load enrolled students")

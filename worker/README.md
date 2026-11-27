@@ -17,6 +17,43 @@ pyannote.
 | POST | `/verify/face-1to1` | 1:1 face verification + PAD + challenge (fail closed) |
 | POST | `/verify/voice-1to1` | 1:1 voice verification + AASIST + challenge (fail closed) |
 
+## Attendance REST API
+
+The data API is mounted at `/api/v1` in this same FastAPI service. It
+validates the Supabase access token on each request and forwards that
+user JWT to Postgres so RLS remains active. The internal adapter used by
+the Streamlit server also requires `X-Internal-Token`; set the same
+`API_INTERNAL_TOKEN` on the UI and worker. This token is server-side only.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/auth/student` | Verify PIN, apply login throttling, and link the student profile to the signed-in user |
+| POST | `/api/v1/auth/teacher` | Verify password, apply login throttling, and link the teacher profile |
+| GET | `/api/v1/students/me` | Read the signed-in student's profile |
+| GET | `/api/v1/students/me/subjects` | List the student's subjects |
+| GET | `/api/v1/students/me/attendance` | List the student's attendance |
+| POST | `/api/v1/students/me/enrollments` | Join by invitation code |
+| DELETE | `/api/v1/students/me/enrollments/{subject_id}` | Leave a subject |
+| GET | `/api/v1/teachers/me/subjects` | List the signed-in teacher's subjects |
+| GET | `/api/v1/teachers/me/attendance` | List attendance with optional filters |
+| POST | `/api/v1/subjects` | Create a subject |
+| GET | `/api/v1/subjects/{id}` | Read an accessible subject |
+| GET | `/api/v1/subjects/by-join-code/{join_code}` | Preview a subject from its invitation code |
+| GET | `/api/v1/subjects/{id}/students` | List the accessible roster (without biometric templates) |
+| POST | `/api/v1/subjects/{id}/enrollments` | Enroll a student by ID in a teacher-owned subject |
+| DELETE | `/api/v1/subjects/{id}/enrollments/{student_id}` | Remove a student from a teacher-owned subject |
+| POST | `/api/v1/subjects/{id}/enrollments/by-usn` | Find a student by USN and enroll them, scoped to a teacher-owned subject |
+| POST | `/api/v1/subjects/{id}/sessions` | Create an attendance session and its records |
+| PATCH | `/api/v1/attendance/{log_id}` | Correct an attendance record |
+| DELETE | `/api/v1/subjects/{id}` | Delete a teacher-owned subject |
+
+Enrollment routes, teacher roster reads and scoped face-profile calls require
+migrations `007_student_self_enrollment.sql` and `008_teacher_mfa.sql`.
+Teacher data routes require a valid Supabase access token at AAL2 (MFA).
+All routes require a valid Supabase Bearer token; `/auth/*` and the hidden
+`/internal/*` adapter also require the internal token. `/docs` exposes the
+public REST route schemas.
+
 Job queue: Postgres `inference_jobs`, claimed with
 `FOR UPDATE SKIP LOCKED` (`worker/queue.py`) — no Redis by default.
 Run several worker replicas safely; each job is claimed by exactly one.
@@ -50,7 +87,9 @@ in the image; the **weights** must be present in the image.
 | Variable | Purpose |
 |---|---|
 | `HF_TOKEN` | Hugging Face token for pyannote's gated diarization model. Worker env only — never in Streamlit, never in a file. |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Gallery loading. Worker env only — the `service_role` key must never appear in Streamlit code. |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Worker-only gallery loading, login throttling/profile linking and exact invitation-code lookup. The `service_role` key must never appear in Streamlit code. |
+| `SUPABASE_ANON_KEY` | Project key used to validate user sessions on the REST API. It is safe to share with the UI; RLS protects data requests. |
+| `API_INTERNAL_TOKEN` | Long random value shared between UI and worker for the private Streamlit database adapter. |
 | `DATABASE_URL` | Postgres DSN for the job queue. Empty → in-memory job store (dev only, single replica). |
 | `MODEL_DIR` | Weights directory (default `/models`). |
 | `FACE_BACKEND` | `onnx` (default, required). `dlib` raises loudly — the worker has no dlib. |

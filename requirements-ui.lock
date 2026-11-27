@@ -115,7 +115,7 @@ propcache==0.5.4
     # via yarl
 protobuf==7.36.2
     # via streamlit
-pyarrow==26.0.1
+pyarrow==25.0.0
     # via streamlit
 pycparser==3.12
     # via cffi

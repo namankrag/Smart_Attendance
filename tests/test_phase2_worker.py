@@ -233,14 +233,17 @@ def _install_fastapi_stub():
     fastapi = types.ModuleType("fastapi")
 
     class HTTPException(Exception):
-        def __init__(self, status_code, detail=None):
+        def __init__(self, status_code, detail=None, headers=None):
             super().__init__(detail)
             self.status_code = status_code
             self.detail = detail
+            self.headers = headers
 
     class Request:
-        def __init__(self, body):
+        def __init__(self, body=None, headers=None, client_host="127.0.0.1"):
             self._body = body
+            self.headers = headers or {}
+            self.client = types.SimpleNamespace(host=client_host)
         async def json(self):
             return self._body
 
@@ -317,6 +320,8 @@ def test_app_submit_and_poll_job_end_to_end():
     cfg = WorkerConfig(model_dir="/nonexistent-models")
     store = MemoryJobStore()
     app = app_mod.create_app(config=cfg, store=store, ctx={
+        "authenticate_user": lambda request: request.headers.get("user_id"),
+        "owns_subject": lambda user_id, subject_id: user_id == "teacher-1" and subject_id == "sub",
         "gallery_loader": FakeGallery(),
         "face_pipeline": FakeFacePipeline(),
         "diarizer": FakeDiarizer(),
@@ -328,16 +333,168 @@ def test_app_submit_and_poll_job_end_to_end():
     bg = fastapi.BackgroundTasks()
     job = asyncio.run(submit(fastapi.Request(
         {"type": "face", "subject_id": "sub", "candidate_ids": ["s1"],
-         "payload_b64": payload_b64, "metadata": {}}), bg))
+         "payload_b64": payload_b64, "metadata": {}}, {"user_id": "teacher-1"}), bg))
     assert job["status"] == "queued"
     assert job["id"]
     # Run the background task the app scheduled (claims + processes).
     assert len(bg.tasks) == 1
     fn, args, kwargs = bg.tasks[0]
     asyncio.run(fn(*args, **kwargs))
-    got = _route(app, "GET", "/jobs/{job_id}")(job["id"])
+    get_job = _route(app, "GET", "/jobs/{job_id}")
+    got = get_job(job["id"], fastapi.Request(headers={"user_id": "teacher-1"}))
     assert got["status"] == "done"
     assert got["result"]["detected"]["s1"]["cosine"] == 0.9
+    with pytest.raises(Exception) as excinfo:
+        get_job(job["id"], fastapi.Request(headers={"user_id": "teacher-2"}))
+    assert getattr(excinfo.value, "status_code", None) == 404
+
+
+def test_app_requires_auth_and_subject_owner_for_jobs():
+    _install_fastapi_stub()
+    import importlib
+    import worker.app as app_mod
+    importlib.reload(app_mod)
+    from worker.config import WorkerConfig
+    from worker.stores import MemoryJobStore
+
+    store = MemoryJobStore()
+    app = app_mod.create_app(config=WorkerConfig(), store=store, ctx={
+        "authenticate_user": lambda request: request.headers.get("user_id"),
+        "owns_subject": lambda user_id, subject_id: False,
+    })
+    fastapi = sys.modules["fastapi"]
+    submit = _route(app, "POST", "/jobs")
+    body = {"type": "face", "subject_id": "other-subject",
+            "payload_b64": base64.b64encode(_jpeg_bytes()).decode()}
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(fastapi.Request(body), fastapi.BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 401
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(fastapi.Request(body, {"user_id": "teacher-1"}),
+                           fastapi.BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 403
+    assert store.jobs == {}
+
+
+def test_app_validates_supabase_token_and_subject_owner():
+    _install_fastapi_stub()
+    import importlib
+    import worker.app as app_mod
+    importlib.reload(app_mod)
+    from worker.config import WorkerConfig
+    from worker.stores import MemoryJobStore
+
+    def jwt_for_aal(aal):
+        payload = base64.urlsafe_b64encode(
+            json.dumps({"aal": aal}).encode()
+        ).decode().rstrip("=")
+        return f"header.{payload}.signature"
+
+    aal1_token = jwt_for_aal("aal1")
+    aal2_token = jwt_for_aal("aal2")
+
+    class Auth:
+        def get_user(self, token):
+            if token not in (aal1_token, aal2_token):
+                raise ValueError("invalid token")
+            return types.SimpleNamespace(user=types.SimpleNamespace(id="teacher-1"))
+
+    class Query:
+        def __init__(self, table):
+            self.table = table
+            self.filters = {}
+
+        def select(self, _columns):
+            return self
+
+        def eq(self, column, value):
+            self.filters[column] = value
+            return self
+
+        def in_(self, column, values):
+            self.filters[column] = values
+            return self
+
+        def execute(self):
+            if self.table == "teachers":
+                rows = [{"teacher_id": "teacher-row-1"}]
+                return types.SimpleNamespace(
+                    data=rows if self.filters.get("auth_user_id") == "teacher-1" else [])
+            owned = (
+                self.filters.get("subject_id") == "owned-subject"
+                and "teacher-row-1" in self.filters.get("teacher_id", [])
+            )
+            return types.SimpleNamespace(data=[{"subject_id": "owned-subject"}] if owned else [])
+
+    class Supabase:
+        auth = Auth()
+
+        def table(self, name):
+            return Query(name)
+
+    store = MemoryJobStore()
+    cfg = WorkerConfig(supabase_url="https://example.supabase.co",
+                       supabase_service_role_key="worker-only-key")
+    app = app_mod.create_app(config=cfg, store=store, ctx={"supabase_client": Supabase()})
+    fastapi = sys.modules["fastapi"]
+    submit = _route(app, "POST", "/jobs")
+    body = {"type": "face", "subject_id": "owned-subject",
+            "payload_b64": base64.b64encode(_jpeg_bytes()).decode()}
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(fastapi.Request(body, {
+            "authorization": "Bearer invalid-token"}), fastapi.BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 401
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(fastapi.Request({**body, "subject_id": "other-subject"}, {
+            "authorization": f"Bearer {aal2_token}"}), fastapi.BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 403
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(fastapi.Request(body, {
+            "authorization": f"Bearer {aal1_token}"}), fastapi.BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 403
+
+    job = asyncio.run(submit(fastapi.Request(body, {
+        "authorization": f"Bearer {aal2_token}"}), fastapi.BackgroundTasks()))
+    assert store.get_job(job["id"])["created_by"] == "teacher-1"
+
+
+def test_app_rate_limits_costly_worker_endpoints():
+    _install_fastapi_stub()
+    import importlib
+    import worker.app as app_mod
+    importlib.reload(app_mod)
+    from worker.config import WorkerConfig
+    from worker.stores import MemoryJobStore
+
+    app = app_mod.create_app(config=WorkerConfig(), store=MemoryJobStore())
+    verify = _route(app, "POST", "/verify/voice-1to1")
+    request = sys.modules["fastapi"].Request({})
+    for _ in range(5):
+        with pytest.raises(Exception) as excinfo:
+            asyncio.run(verify(request))
+        assert getattr(excinfo.value, "status_code", None) == 400
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(verify(request))
+    assert getattr(excinfo.value, "status_code", None) == 429
+    assert int(excinfo.value.headers["Retry-After"]) >= 1
+
+    job_app = app_mod.create_app(
+        config=WorkerConfig(), store=MemoryJobStore(), ctx={
+            "authenticate_user": lambda _request: "teacher-1",
+            "owns_subject": lambda _user_id, _subject_id: True,
+        })
+    submit = _route(job_app, "POST", "/jobs")
+    request = sys.modules["fastapi"].Request({
+        "type": "face", "subject_id": "owned-subject",
+        "payload_b64": base64.b64encode(b"image").decode(),
+    })
+    for _ in range(5):
+        asyncio.run(submit(request, sys.modules["fastapi"].BackgroundTasks()))
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(submit(request, sys.modules["fastapi"].BackgroundTasks()))
+    assert getattr(excinfo.value, "status_code", None) == 429
 
 
 def test_app_rejects_bad_job_type_and_missing_job():
@@ -347,7 +504,10 @@ def test_app_rejects_bad_job_type_and_missing_job():
     importlib.reload(app_mod)
     from worker.config import WorkerConfig
     from worker.stores import MemoryJobStore
-    app = app_mod.create_app(config=WorkerConfig(), store=MemoryJobStore())
+    app = app_mod.create_app(config=WorkerConfig(), store=MemoryJobStore(), ctx={
+        "authenticate_user": lambda request: "teacher-1",
+        "owns_subject": lambda user_id, subject_id: True,
+    })
     fastapi = sys.modules["fastapi"]
     submit = _route(app, "POST", "/jobs")
     with pytest.raises(Exception) as excinfo:
@@ -355,5 +515,5 @@ def test_app_rejects_bad_job_type_and_missing_job():
                            fastapi.BackgroundTasks()))
     assert getattr(excinfo.value, "status_code", None) == 400
     with pytest.raises(Exception) as excinfo:
-        _route(app, "GET", "/jobs/{job_id}")("nope")
+        _route(app, "GET", "/jobs/{job_id}")("nope", fastapi.Request())
     assert getattr(excinfo.value, "status_code", None) == 404

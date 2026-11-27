@@ -8,7 +8,7 @@ import streamlit as st
 # enrolments and the subject in ONE database transaction. The old
 # sequential delete_subject() is kept only for databases where 005
 # has not been applied yet.
-from src.database.db import delete_subject, delete_subject_transactional
+from src.database.rest_db import delete_subject, delete_subject_transactional
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 

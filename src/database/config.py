@@ -23,11 +23,16 @@ Security notes (read before changing anything here):
 """
 
 import time
+import os
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
 
 import httpx
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:  # The FastAPI worker uses these query helpers without Streamlit.
+    st = None  # type: ignore[assignment]
 from supabase import Client, create_client
 
 try:
@@ -39,6 +44,9 @@ except ImportError:  # pragma: no cover - older supabase-py layout
         ClientOptions = None  # type: ignore[assignment]
 
 F = TypeVar("F", bound=Callable[..., Any])
+_REQUEST_CLIENT: ContextVar[Optional[Client]] = ContextVar(
+    "request_supabase_client", default=None
+)
 
 # --- Timeouts ----------------------------------------------------------------
 # A single explicit timeout for every Supabase (PostgREST / Storage) call.
@@ -81,15 +89,35 @@ READ_INITIAL_DELAY_SECONDS = 0.5
 READ_MAX_DELAY_SECONDS = 4.0
 
 
-@st.cache_resource(show_spinner=False)
+def _cache_resource(func):
+    return st.cache_resource(show_spinner=False)(func) if st is not None else func
+
+
+@_cache_resource
 def _init_supabase_client() -> Client:
     """Thread-safe singleton Supabase client cached in Streamlit resource pool.
 
     Uses the anon key from ``st.secrets["SUPABASE_KEY"]`` only -- see the
     module docstring: the service_role key must never be used here.
     """
-    supabase_url = st.secrets["SUPABASE_URL"]
-    supabase_key = st.secrets["SUPABASE_KEY"]
+    if st is not None:
+        try:
+            supabase_url = st.secrets["SUPABASE_URL"]
+            supabase_key = st.secrets["SUPABASE_KEY"]
+        except Exception:
+            supabase_url = os.environ.get("SUPABASE_URL", "")
+            supabase_key = (
+                os.environ.get("SUPABASE_ANON_KEY")
+                or os.environ.get("SUPABASE_KEY", "")
+            )
+    else:
+        supabase_url = os.environ.get("SUPABASE_URL", "")
+        supabase_key = (
+            os.environ.get("SUPABASE_ANON_KEY")
+            or os.environ.get("SUPABASE_KEY", "")
+        )
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("SUPABASE_URL and the anon key must be configured")
     timeout = get_client_timeout_seconds()
     if ClientOptions is not None:
         options = ClientOptions(
@@ -108,19 +136,37 @@ def get_supabase() -> Client:
 
 
 class SupabaseProxy:
-    """Transparent thread-safe proxy forwarding calls to the cached client.
+    """Use the request client, current user JWT or the anon client.
 
-    SECURITY: this proxy only ever forwards to the anon-key client created
-    by :func:`_init_supabase_client`. It must never be pointed at a
-    service_role client in Streamlit -- RLS is the only thing standing
-    between a logged-in user and another user's rows.
+    The anon client is used for the Google-token exchange and startup check.
+    Screen data access runs after ``require_supabase_auth`` and carries the
+    user's Supabase JWT. FastAPI binds a validated JWT client per request.
     """
 
     def __getattr__(self, name):
+        client = _REQUEST_CLIENT.get()
+        if client is not None:
+            return getattr(client, name)
+        from src.database.auth_session import (
+            get_auth_jwt,
+            get_authenticated_supabase_client,
+        )
+
+        if get_auth_jwt():
+            return getattr(get_authenticated_supabase_client(), name)
         return getattr(get_supabase(), name)
 
 
 supabase = SupabaseProxy()
+
+
+def set_request_supabase_client(client: Client):
+    """Bind a JWT-scoped Supabase client for this request context."""
+    return _REQUEST_CLIENT.set(client)
+
+
+def reset_request_supabase_client(token) -> None:
+    _REQUEST_CLIENT.reset(token)
 
 
 def db_retry_read(

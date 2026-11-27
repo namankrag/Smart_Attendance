@@ -64,8 +64,13 @@ design and stays server-side in the future ML worker only.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
+import time
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import streamlit as st
 
@@ -90,6 +95,7 @@ _LOGOUT_EXPLICIT_KEYS = {
     "show_student_reg",
     "teacher_login_type",
     "current_teacher_tab",
+    "teacher_mfa_code",
     "attendance_images",
     "last_saved_attendance",
     SUPABASE_ACCESS_TOKEN_KEY,
@@ -97,6 +103,7 @@ _LOGOUT_EXPLICIT_KEYS = {
     GOOGLE_ID_TOKEN_KEY,
 }
 _LOGOUT_PREFIXES = (
+    "_teacher_mfa_",
     "smartclass_",
     "reg_",
     "login_pin_",
@@ -111,9 +118,13 @@ __all__ = [
     "GOOGLE_ID_TOKEN_KEY",
     "is_google_logged_in",
     "require_google_login",
+    "SupabaseNonceMismatchError",
+    "require_supabase_auth",
     "get_auth_jwt",
+    "get_supabase_user_id",
     "store_supabase_session",
     "exchange_google_id_token",
+    "refresh_supabase_session",
     "get_authenticated_supabase_client",
     "get_authenticated_db_client",
     "clear_session_on_logout",
@@ -158,27 +169,108 @@ def require_google_login() -> Any:
 def get_auth_jwt() -> Optional[str]:
     """Return the Supabase Auth JWT for the signed-in user, or ``None``.
 
-    Sources, in order:
-    1. ``st.session_state["supabase_access_token"]`` — set by
-       :func:`exchange_google_id_token` after the Google ID token is
-       exchanged for a Supabase session. This is the normal path.
-    2. A token exposed on the ``st.user`` object by the OIDC provider
-       (``access_token`` / ``id_token`` attributes, when present).
-    3. ``st.session_state["google_id_token"]`` — the raw Google ID
-       token, usable only as input to :func:`exchange_google_id_token`,
-       NOT as a Supabase JWT (it carries no ``auth.uid()`` for RLS).
-       It is therefore NOT returned here.
+    Only the Supabase access token is valid here. Google OIDC tokens must
+    first be exchanged with :func:`exchange_google_id_token`.
     """
     state = getattr(st, "session_state", {}) or {}
     token = state.get(SUPABASE_ACCESS_TOKEN_KEY)
     if isinstance(token, str) and token.strip():
         return token.strip()
-    user = getattr(st, "user", None)
-    for attr in ("access_token", "id_token"):
-        value = getattr(user, attr, None) if user is not None else None
-        if isinstance(value, str) and value.strip():
-            return value.strip()
     return None
+
+
+def _user_value(user: Any, key: str) -> Any:
+    try:
+        return user.get(key)
+    except (AttributeError, TypeError):
+        return getattr(user, key, None)
+
+
+def _jwt_is_expired(token: str) -> bool:
+    """Treat malformed or near-expiry JWTs as unusable for a new exchange."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        expires_at = json.loads(base64.urlsafe_b64decode(payload)).get("exp")
+    except (AttributeError, IndexError, TypeError, ValueError, binascii.Error):
+        return True
+    return (
+        not isinstance(expires_at, (int, float))
+        or isinstance(expires_at, bool)
+        or expires_at <= time.time() + 30
+    )
+
+
+def _restart_google_login() -> None:
+    """Clear Supabase tokens and redirect through a fresh Google OIDC login."""
+    state = getattr(st, "session_state", None)
+    if state is not None:
+        state.pop(SUPABASE_ACCESS_TOKEN_KEY, None)
+        state.pop(SUPABASE_REFRESH_TOKEN_KEY, None)
+
+    logout = getattr(st, "logout", None)
+    if callable(logout):
+        logout()
+    else:
+        login = getattr(st, "login", None)
+        if not callable(login):
+            raise RuntimeError("Google sign-in expired. Please sign in again.")
+        login("google")
+    st.stop()
+
+
+class SupabaseNonceMismatchError(RuntimeError):
+    """Supabase's Google provider needs nonce checking skipped for Streamlit OIDC."""
+
+
+def require_supabase_auth() -> None:
+    """Exchange the current Streamlit OIDC tokens for a Supabase session."""
+    if get_auth_jwt():
+        return
+
+    user = getattr(st, "user", None)
+    tokens = _user_value(user, "tokens")
+    id_token = _user_value(tokens, "id")
+    if not isinstance(id_token, str) or not id_token.strip():
+        raise RuntimeError(
+            "Google sign-in tokens are unavailable. Set [auth].expose_tokens = ['id', 'access'] "
+            "in Streamlit secrets, then sign in again."
+        )
+    if _jwt_is_expired(id_token):
+        logger.info("Google ID token is expired; restarting Google sign-in")
+        _restart_google_login()
+
+    access_token = _user_value(tokens, "access")
+    try:
+        exchange_google_id_token(
+            id_token,
+            access_token=access_token if isinstance(access_token, str) else None,
+        )
+    except Exception as exc:
+        error = str(exc).casefold()
+        if "nonce" in error and (
+            "mismatch" in error or "both exist" in error
+        ):
+            raise SupabaseNonceMismatchError(
+                "Supabase rejected Streamlit's OIDC nonce. Enable 'Skip nonce check' "
+                "for Google under Supabase Authentication > Providers. Streamlit "
+                "validates this nonce during Google sign-in."
+            ) from exc
+        raise
+
+
+def get_supabase_user_id() -> Optional[str]:
+    """Read the Supabase user ID from its JWT; RLS validates it on insert."""
+    token = get_auth_jwt()
+    if not token:
+        return None
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        subject = json.loads(base64.urlsafe_b64decode(payload)).get("sub")
+        return str(UUID(subject))
+    except (AttributeError, IndexError, TypeError, ValueError, binascii.Error) as exc:
+        raise RuntimeError("The Supabase session has an invalid user ID.") from exc
 
 
 def store_supabase_session(
@@ -196,7 +288,11 @@ def store_supabase_session(
 
 
 def exchange_google_id_token(
-    id_token: str, client: Any = None
+    id_token: str,
+    client: Any = None,
+    *,
+    access_token: Optional[str] = None,
+    nonce: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Exchange a Google ID token for a Supabase Auth session.
 
@@ -213,9 +309,12 @@ def exchange_google_id_token(
         from src.database.config import supabase as _supabase
 
         client = _supabase
-    response = client.auth.sign_in_with_id_token(
-        {"provider": "google", "token": id_token.strip()}
-    )
+    credentials = {"provider": "google", "token": id_token.strip()}
+    if access_token:
+        credentials["access_token"] = access_token
+    if nonce:
+        credentials["nonce"] = nonce
+    response = client.auth.sign_in_with_id_token(credentials)
     session = getattr(response, "session", None) or {}
     if isinstance(session, dict):
         access_token = session.get("access_token")
@@ -229,6 +328,35 @@ def exchange_google_id_token(
         )
     store_supabase_session(access_token, refresh_token)
     return {"access_token": access_token, "session": session}
+
+
+def refresh_supabase_session(client: Any = None) -> bool:
+    """Refresh an expired Supabase access token; return False on failure."""
+    refresh_token = (getattr(st, "session_state", {}) or {}).get(
+        SUPABASE_REFRESH_TOKEN_KEY
+    )
+    if not refresh_token:
+        return False
+    if client is None:
+        from src.database.config import get_supabase
+
+        client = get_supabase()
+    try:
+        response = client.auth.refresh_session(refresh_token)
+        session = getattr(response, "session", None) or {}
+        if isinstance(session, dict):
+            access_token = session.get("access_token")
+            next_refresh_token = session.get("refresh_token")
+        else:
+            access_token = getattr(session, "access_token", None)
+            next_refresh_token = getattr(session, "refresh_token", None)
+        if not access_token:
+            return False
+        store_supabase_session(access_token, next_refresh_token)
+        return True
+    except Exception:
+        logger.info("Supabase session refresh failed")
+        return False
 
 
 def get_authenticated_supabase_client(jwt: Optional[str] = None) -> Any:
@@ -292,11 +420,12 @@ def get_authenticated_db_client() -> Any:
 
 
 def clear_session_on_logout() -> None:
-    """Clear every namespaced / identity session key, then log out of Google.
+    """Clear every namespaced / identity key and end the Streamlit login.
 
-    Keeps only non-identity preferences (e.g. ``theme``). Calls
-    ``st.logout()`` when available so the Google session ends too;
-    absence of ``st.logout`` (older Streamlit) only clears local state.
+    Keeps only non-identity preferences (e.g. ``theme``). ``st.logout()``
+    clears Streamlit's local identity cookie; Google remains signed in because
+    its OIDC metadata does not provide an RP-initiated logout endpoint.
+    Absence of ``st.logout`` (older Streamlit) only clears local state.
     """
     state = getattr(st, "session_state", None)
     if state is not None:

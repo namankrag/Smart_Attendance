@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py ./app.py
 COPY src ./src
 COPY img ./img
+COPY .streamlit/config.toml ./.streamlit/config.toml
 
 EXPOSE 8501
 

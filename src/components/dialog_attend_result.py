@@ -52,7 +52,7 @@ def _save_attendance(logs, *, teacher_id, subject_id, method, session_id=None):
     Never falls back to the plain-insert create_attendance().
     """
     try:
-        from src.database.db import create_attendance_upsert, create_session
+        from src.database.rest_db import create_attendance_upsert, create_session
     except ImportError as exc:
         raise RuntimeError(
             "Cannot save attendance: db.py does not yet provide "

@@ -6,6 +6,8 @@ live in the worker host's environment / secret store only — never in
 the repo, never in the Streamlit app, never in a file that is
 committed. ``HF_TOKEN`` is read here (worker only) because pyannote's
 gated diarization model needs it; the Streamlit UI must never see it.
+The service-role key is used only by gallery loading and protected REST
+operations; normal REST database calls use the signed-in user's JWT.
 
 Threshold defaults are UNCALIBRATED (see ``scripts/evaluate_biometrics.py``):
 they are starting points, not measured operating points.

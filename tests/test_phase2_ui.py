@@ -265,6 +265,29 @@ def test_worker_client_submit_failure_raises_worker_error():
         client.submit_job("face")
 
 
+def test_worker_client_sends_supabase_bearer_token():
+    from src.ui.worker_client import WorkerClient
+
+    captured = {}
+
+    def fake_post(url, payload, headers, timeout):
+        captured["post"] = headers["Authorization"]
+        return {"id": "job-1", "status": "queued"}
+
+    def fake_get(url, timeout, headers):
+        captured["get"] = headers["Authorization"]
+        return {"id": "job-1", "status": "done"}
+
+    client = WorkerClient("http://worker:8000", http_post=fake_post,
+                          http_get=fake_get, auth_token="signed-user-jwt")
+    client.submit_job("face", subject_id="s1", payload_b64="aW1n")
+    client.get_job("job-1")
+    assert captured == {
+        "post": "Bearer signed-user-jwt",
+        "get": "Bearer signed-user-jwt",
+    }
+
+
 def test_get_worker_client_none_when_unconfigured(monkeypatch):
     from src.ui.worker_client import get_worker_client
 

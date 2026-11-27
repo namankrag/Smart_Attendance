@@ -9,9 +9,8 @@ fragment, not the whole page.
 Configuration: ``ML_WORKER_URL`` — from ``st.secrets["ML_WORKER_URL"]``
 when present, else the ``ML_WORKER_URL`` environment variable, else
 ``None`` (worker disabled → the caller falls back to the legacy
-in-process pipeline). No credentials are sent: the worker trusts only
-requests from the UI host's network (see ``worker/README.md``); the
-Supabase ``service_role`` key lives in the worker only, never here.
+in-process pipeline). Requests carry the signed-in user's Supabase JWT;
+the Supabase ``service_role`` key lives in the worker only, never here.
 
 Transport is stdlib ``urllib`` with explicit timeouts (no extra
 dependency, no ``httpx`` client to configure). ``http_post`` /
@@ -47,8 +46,8 @@ def _default_post(url: str, payload: bytes, headers: dict, timeout: float) -> di
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _default_get(url: str, timeout: float) -> dict:
-    req = urllib.request.Request(url, method="GET")  # noqa: S310
+def _default_get(url: str, timeout: float, headers: Optional[dict] = None) -> dict:
+    req = urllib.request.Request(url, headers=headers or {}, method="GET")  # noqa: S310
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
         return json.loads(resp.read().decode("utf-8"))
 
@@ -65,9 +64,11 @@ class WorkerClient:
     def __init__(self, base_url: str, *,
                  http_post: Optional[Callable] = None,
                  http_get: Optional[Callable] = None,
+                 auth_token: Optional[str] = None,
                  timeout: float = DEFAULT_TIMEOUT_SECONDS):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.auth_token = auth_token
         self._http_post = http_post or _default_post
         self._http_get = http_get or _default_get
 
@@ -100,11 +101,14 @@ class WorkerClient:
             "payload_b64": payload_b64,
             "metadata": metadata or {},
         }
+        headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
         try:
             return self._http_post(
                 f"{self.base_url}/jobs",
                 json.dumps(body).encode("utf-8"),
-                {"Content-Type": "application/json"},
+                headers,
                 self.timeout,
             )
         except (urllib.error.URLError, OSError, ValueError) as exc:
@@ -114,9 +118,12 @@ class WorkerClient:
     def get_job(self, job_id: str) -> dict:
         """``GET /jobs/{id}`` — ``{"id","status","progress","result","error"}``."""
         try:
-            return self._http_get(
-                f"{self.base_url}/jobs/{job_id}", POLL_TIMEOUT_SECONDS
-            )
+            url = f"{self.base_url}/jobs/{job_id}"
+            if self.auth_token:
+                return self._http_get(
+                    url, POLL_TIMEOUT_SECONDS,
+                    {"Authorization": f"Bearer {self.auth_token}"})
+            return self._http_get(url, POLL_TIMEOUT_SECONDS)
         except (urllib.error.URLError, OSError, ValueError) as exc:
             logger.warning("ML worker poll failed for job %s: %s", job_id, exc)
             raise WorkerError("ML worker unreachable while polling job") from exc
@@ -130,21 +137,24 @@ def get_worker_client() -> Optional[WorkerClient]:
     """Build a client from config, or ``None`` when the worker is not
     configured (caller falls back to the legacy in-process pipeline).
 
-    Reads ``st.secrets["ML_WORKER_URL"]`` first, then the
-    ``ML_WORKER_URL`` environment variable. Importing streamlit here is
-    safe (the UI always has it); the function degrades to env-only
-    when secrets are unavailable.
+    Reads the ``ML_WORKER_URL`` environment variable first, then
+    ``st.secrets["ML_WORKER_URL"]``. Environment takes precedence so
+    Docker can use its internal service hostname instead of localhost.
     """
-    url: Optional[str] = None
+    url: Optional[str] = os.environ.get("ML_WORKER_URL")
     try:
         import streamlit as st  # local import: keeps this module importable in tests
         try:
-            url = st.secrets.get("ML_WORKER_URL")  # type: ignore[attr-defined]
+            url = url or st.secrets.get("ML_WORKER_URL")  # type: ignore[attr-defined]
         except Exception:
-            url = None
+            pass
     except Exception:
-        url = None
-    url = url or os.environ.get("ML_WORKER_URL")
+        pass
     if not url:
         return None
-    return WorkerClient(str(url))
+    try:
+        from src.database.auth_session import get_auth_jwt
+        auth_token = get_auth_jwt()
+    except Exception:
+        auth_token = None
+    return WorkerClient(str(url), auth_token=auth_token)

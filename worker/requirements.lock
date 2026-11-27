@@ -20,6 +20,10 @@ anyio==4.16.0
     #   httpx
     #   httpx2
     #   starlette
+argon2-cffi==23.1.0
+    # via -r worker/requirements.txt
+argon2-cffi-bindings==26.2.0
+    # via argon2-cffi
 asteroid-filterbanks==0.4.0
     # via pyannote-audio
 attrs==26.1.0
@@ -33,6 +37,7 @@ certifi==2026.11.20
     #   requests
 cffi==2.1.1
     # via
+    #   argon2-cffi-bindings
     #   cryptography
     #   soundfile
 charset-normalizer==3.5.2

@@ -49,13 +49,13 @@ SmartClass is a web-based attendance management system built with **Python** and
 - **Share a class**: every subject has a join code, a shareable link and a colour-themed **QR code**.
 - **Attendance records**: session-wise cards with attendance percentage, summary tiles (sessions, total logs, present entries, average attendance), and a per-session drill-down.
 - **Manual corrections**: from a session's detail view, flip any student between **Present** and **Absent**.
+- **Delete attendance session**: remove a class session and all students' attendance entries for it after confirming.
 
 ### 🧑‍🎓 Student Features
 - **FaceID login** with heuristic liveness screening, or **Student ID + PIN** login.
 - **Non-biometric fallback:** a student never has to use face or voice — Student ID + PIN login and teacher manual marking work with no penalty and no difference in the attendance record (GDPR Art. 9 / AEPD guidance; see [Privacy](#-privacy--legal-dpdp--gdpr)).
 - **Self-registration** on first face scan: name, 4–6 character PIN, and an optional voice sample. Registration shows a plain-language privacy notice, records consent (DPDP Act Sec. 6), and registers under-18s as PIN-only until a parent/guardian gives verifiable consent in person to the teacher (Sec. 9(1)).
 - **My data & privacy:** every student can see what data is held about them (Sec. 11), withdraw biometric consent (Sec. 6(4)), and self-service **"Delete My Biometric Data"** (Sec. 12(2)) — a real delete of face/voice templates, not a flag.
-- **Add extra face scans** (glasses, hairstyle, lighting) from the sidebar. Up to **5** face embeddings are kept per student.
 - **Auto-enrol** by opening a join link (`?join-code=XXXX`) or scanning the teacher's QR code, or enter a subject code manually.
 - View enrolled subjects, total classes, and a timestamped **attended / absent history** for each subject.
 - Unenroll from a subject at any time — with a confirmation step.
@@ -82,7 +82,7 @@ SmartClass is a web-based attendance management system built with **Python** and
 ### 🛡️ Reliability & Compatibility
 - Supabase calls are wrapped in an **exponential-backoff retry** decorator for transient network errors.
 - Built-in `pkg_resources` shim so the app still runs on newer Python versions where `pkg_resources` is no longer bundled (needed by `face_recognition_models`).
-- **Dependencies are locked** (`requirements-ui.lock` for the UI image, `worker/requirements.lock` for the worker) — generated with `uv pip compile --python-version 3.11`; regenerate with the same command. Unused packages were removed: no code imports `scikit-learn` or `webrtcvad` (scikit-learn remains only as a transitive dependency of SpeechBrain/pyannote in the worker image). Real runtime dependencies are listed explicitly: `scipy`, `httpx`, `onnxruntime`, `argon2-cffi`.
+- **Dependencies are locked** (`requirements-ui.lock` for the UI image, `worker/requirements.lock` for the worker) — generated with `uv pip compile --python-version 3.11`; regenerate with the same command. Unused packages were removed: no code imports `scikit-learn` or `webrtcvad` (scikit-learn remains only as a transitive dependency of SpeechBrain/pyannote in the worker image). Real runtime dependencies are listed explicitly: `scipy`, `httpx`, `httpx2`, `onnxruntime`, `argon2-cffi`.
 - **Streamlit XSRF and CORS protection stay on** (`.streamlit/config.toml`); the dev container no longer disables them (audit 44).
 - **CI** (`.github/workflows/ci.yml`): ruff, mypy (advisory), bandit, pip-audit, pytest on Python 3.11.
 
@@ -93,7 +93,7 @@ SmartClass is a web-based attendance management system built with **Python** and
 | Layer | Technology |
 |---|---|
 | Language | Python 3.11 |
-| Web framework | [Streamlit](https://streamlit.io/) |
+| Web framework | [Streamlit](https://streamlit.io/) + [FastAPI](https://fastapi.tiangolo.com/) |
 | Database / Backend | [Supabase](https://supabase.com/) (Postgres + pgvector + Auth + RLS) |
 | Face recognition | `dlib-bin` HOG + 68-point landmarks + ResNet descriptors (128-D), matching the existing student templates; the ONNX worker path awaits 512-D enrollment support |
 | Voice recognition | Phase 2 worker: ECAPA-TDNN (`speechbrain`), pyannote diarization, AASIST; legacy `resemblyzer` path kept for local dev |
@@ -108,18 +108,17 @@ SmartClass is a web-based attendance management system built with **Python** and
 
 ```mermaid
 flowchart LR
-    Student["Student / Teacher\n(browser)"] --> UI["Streamlit UI\ndlib face recognition\nDockerfile.ui"]
-    UI -->|anon key + user JWT\nRLS enforced| SB["Supabase Postgres\nstudents / subjects /\nattendance / audit_log"]
-    UI -->|anon key + JWT| SB
-    SB <-->|pgvector 512-d face\n192-d voice, HNSW| VEC["face_embeddings\nvoice_embeddings"]
-    UI -->|voice jobs\nPOST /jobs + polling| W["FastAPI ML worker\nDockerfile.worker\nONNX voice + PAD"]
-    W -->|service_role key in worker env only| SB
-    W -->|FOR UPDATE SKIP LOCKED| JOBS["inference_jobs"]
-    W -.->|raw photo/audio\nin memory only,\ndeleted after use| W
+    Student["Student / Teacher<br/>(browser)"] --> UI["Streamlit UI<br/>Dockerfile.ui"]
+    UI -->|Bearer JWT + internal token| API["FastAPI data API + ML worker<br/>Dockerfile.worker"]
+    API -->|user JWT; RLS enforced| SB["Supabase Postgres<br/>students / subjects / attendance"]
+    API -->|worker-only service role| SB
+    SB <-->|pgvector embeddings| VEC["face_embeddings<br/>voice_embeddings"]
+    API -->|FOR UPDATE SKIP LOCKED| JOBS["inference_jobs"]
+    API -.->|raw media kept in memory<br/>and deleted after inference| API
 ```
 
-- **UI image** (`Dockerfile.ui`, `requirements-ui.txt` → `requirements-ui.lock`): Streamlit + Supabase client + Argon2id + dlib face recognition. The current face flow stores 128-D templates in `students.face_embedding`; the ONNX worker requires 512-D templates and is not used for face attendance yet.
-- **Worker image** (`Dockerfile.worker`, `worker/requirements.txt` → `worker/requirements.lock`): FastAPI + ONNX Runtime + torch/SpeechBrain/pyannote, model weights baked in, `/healthz` + `/readyz`. The UI uses it for voice jobs; face jobs stay on dlib until enrollment writes compatible 512-D templates. Started by `docker-compose.yml` alongside the UI.
+- **UI image** (`Dockerfile.ui`, `requirements-ui.txt` → `requirements-ui.lock`): Streamlit + Supabase client + Argon2id + dlib face recognition. It sends authenticated data requests and ML jobs to the FastAPI service. The current face flow stores 128-D templates in `students.face_embedding`; the ONNX worker requires 512-D templates and is not used for face attendance yet.
+- **FastAPI image** (`Dockerfile.worker`, `worker/requirements.txt` → `worker/requirements.lock`): authenticated REST data routes under `/api/v1`, plus the ONNX ML worker and `/healthz` + `/readyz`. Database requests carry the signed-in user's JWT so Supabase RLS remains active; the service-role key is reserved for worker-side operations. Started by `docker-compose.yml` alongside the UI.
 - **Database:** Supabase Postgres with pgvector (migration 004), RLS policies (migrations 001/003/004/005), append-only `audit_log`, and `consent_records` / `parental_consents` (migration 005).
 - **Raw media:** photos/audio are held in memory only (UI session state / worker payload cache) and deleted immediately after inference. They are never written to disk or object storage. See `docs/privacy/dpia.md`.
 
@@ -145,18 +144,19 @@ Smart_Attendance/
 ├── .streamlit/               # config.toml (XSRF/CORS on), secrets.toml.example
 ├── docs/privacy/             # privacy-notice.md, dpia.md, cancelable-templates.md
 ├── img/                      # header.png, NKA.png, student.png, teacher.png
-├── migrations/               # 001-005 (005: consent tables + delete_subject_tx)
+├── migrations/               # 001-011 (011: secure teacher session details)
 ├── scripts/                  # evaluate_biometrics.py, pin_hash_helper.py
 ├── src/
 │   ├── database/
-│   │   ├── config.py         # Supabase client (anon key only), retry policy
-│   │   ├── db.py             # All database queries; transactional subject delete
+│   │   ├── config.py         # Supabase clients, request JWT binding, retry policy
+│   │   ├── db.py             # Database queries; transactional subject delete
+│   │   ├── rest_db.py        # FastAPI-backed data facade for the Streamlit UI
 │   │   ├── privacy.py        # Phase 3: consent, parental gate, erasure, breach log
 │   │   └── vector.py         # pgvector match_faces (+ template-access audit)
 │   ├── pipelines/            # Legacy dlib/resemblyzer (worker is the Phase 2 path)
 │   ├── screen/               # home / teacher / student screens (+ auth, dialogs)
 │   ├── components/           # Reusable UI components and dialogs
-│   └── ui/                   # base_layout, uploads (in-memory ingest), worker_client
+│   └── ui/                   # data_api, base_layout, uploads, worker_client
 ├── tests/                    # pytest incl. tests/test_phase3_privacy.py
 ├── worker/                   # FastAPI ML worker (ONNX face/voice + PAD)
 ├── app.py                    # Application entry point and routing
@@ -201,6 +201,16 @@ venv\Scripts\activate
 pip install -r requirements-ui.lock
 ```
 
+For Windows local development with the legacy in-process voice fallback, install the main
+requirements, then the prebuilt voice packages (no Visual C++ build tools required):
+
+```powershell
+pip install -r requirements.txt
+pip install --no-deps -r requirements-voice-windows.txt
+```
+
+The UI/worker setup above does not need the legacy voice fallback package.
+
 ---
 
 ## 🔐 Configuration
@@ -210,13 +220,17 @@ Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in 
 ```toml
 SUPABASE_URL = "YOUR_SUPABASE_URL"
 SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY"
+DATA_API_URL = "http://localhost:8000"
+API_INTERNAL_TOKEN = "THE_SAME_LONG_RANDOM_VALUE_AS_IN_DOT_ENV"
 ```
 
-> ⚠️ `SUPABASE_KEY` is the **anon key only**. The service_role key bypasses Row Level Security and must NEVER be placed here or anywhere in the Streamlit app — it lives in the ML worker environment only (see `.env.example`). Never commit your secrets: `.streamlit/secrets.toml` and `.env` are gitignored; only the `.example` files are checked in.
+The `[auth]` section must expose both `id` and `access` tokens for the Google-to-Supabase session bridge. The internal token authenticates the server-side UI adapter; it is not a Supabase credential. `DATA_API_URL` points to the FastAPI service (Compose sets it to `http://worker:8000`).
+
+> ⚠️ `SUPABASE_KEY` is the **anon key only**. The service_role key bypasses Row Level Security and must NEVER be placed here or anywhere in the Streamlit app — it lives in the FastAPI worker environment only (see `.env.example`). Never commit your secrets: `.streamlit/secrets.toml` and `.env` are gitignored; only the `.example` files are checked in.
 
 If `APP_URL` is not set, share links default to `https://attend-dev.streamlit.app`.
 
-For local Docker runs, copy `.env.example` to `.env` (worker secrets go there, never in the UI service).
+For local Docker runs, copy `.env.example` to `.env` and use the same random `API_INTERNAL_TOKEN` in both files. Worker credentials in `.env` go only to the worker; Compose passes only the internal token and API URL to the UI.
 
 ---
 
@@ -224,10 +238,10 @@ For local Docker runs, copy `.env.example` to `.env` (worker secrets go there, n
 
 > **Status: not deployed.** The deployment decision (Streamlit Community Cloud vs a container for the UI; Cloud Run vs Render for the worker) still needs Naman. Nothing below has been run against a hosted environment yet.
 
-1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`, then `006_backfill_legacy_enrollment_dates.sql`. Migration 006 restores historical attendance counts for enrollments that existed before 001. Back up (`pg_dump`) before each run. Never run migrations from the app.
-2. **Auth:** create a Google Cloud OAuth client with redirect `https://<your-project>.supabase.co/auth/v1/callback`, enable the Google provider in Supabase Auth, and link each teacher/student `auth_user_id` to their row (without the link, RLS returns zero rows by design).
-3. **Worker:** bake the model weights into the worker image (`worker/models/` — the build fails if any weight is missing), set `SUPABASE_SERVICE_ROLE_KEY`, `HF_TOKEN` and `DATABASE_URL` in the worker environment only, and deploy the worker first. Check `GET /readyz` returns 200.
-4. **UI:** deploy the Streamlit app with `SUPABASE_URL` + `SUPABASE_ANON_KEY` only (via `.streamlit/secrets.toml` or environment), set `ML_WORKER_URL` to the worker, and confirm XSRF/CORS protection is on (`.streamlit/config.toml`).
+1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`, `006_backfill_legacy_enrollment_dates.sql`, `007_student_self_enrollment.sql`, `008_teacher_mfa.sql`, `009_login_attempts_owner_rls.sql`, `010_restrict_anonymous_enrollment_rpcs.sql`, then `011_teacher_session_details.sql`. Migration 006 restores historical attendance counts; 007 adds ownership-checked roster and profile RPCs; 008 requires AAL2 for teacher data; 009 scopes rate-limit rows to the signed-in Supabase user; 010 removes anonymous access to enrollment RPCs; and 011 returns only names and USNs for a teacher's session. Back up (`pg_dump`) before each run. Never run migrations from the app.
+2. **Auth:** create a Google Cloud OAuth client with redirect `https://<your-project>.supabase.co/auth/v1/callback`, enable the Google provider in Supabase Auth, and set `expose_tokens = ["id", "access"]` in Streamlit's `[auth]` section. For this Streamlit ID-token bridge, enable **Skip nonce check** under Supabase **Authentication > Providers > Google**: Streamlit validates its OIDC nonce, while Supabase expects a hashed nonce that Streamlit does not send. This disables Supabase's second nonce check. The app exchanges those Google tokens for a Supabase session and sets each new student's `auth_user_id`; existing profiles still need their `auth_user_id` linked (without it, RLS returns zero rows by design).
+3. **FastAPI service:** bake the model weights into the worker image (`worker/models/` — the build fails if any weight is missing), set `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `API_INTERNAL_TOKEN`, `HF_TOKEN` and `DATABASE_URL` in the worker environment, and deploy the service. Check `GET /readyz` returns 200. The service validates Supabase access tokens and uses the caller's JWT for RLS-protected data requests.
+4. **UI:** deploy the Streamlit app with `SUPABASE_URL` + `SUPABASE_KEY` (anon) and `API_INTERNAL_TOKEN` in Streamlit secrets; set `DATA_API_URL` and `ML_WORKER_URL` to the FastAPI service. Keep XSRF/CORS protection on (`.streamlit/config.toml`).
 5. **Privacy before real data:** fill in the real grievance-officer contact (currently a placeholder), backfill dates of birth for the under-18 gate, and have the privacy notice + DPIA (`docs/privacy/`) reviewed by a qualified data-protection lawyer.
 6. **Evaluate:** run `scripts/evaluate_biometrics.py` on a labelled classroom set and calibrate thresholds before trusting PAD or matching in production (see [limitations](#-honest-threat-model--limitations)).
 
@@ -237,7 +251,7 @@ Local Docker equivalent: `docker compose up --build` (UI on :8501, worker on :80
 
 ## 🗄️ Database Schema
 
-Apply the migrations in `migrations/` (001–006) — the table below is a summary, not the DDL. Key tables:
+Apply the migrations in `migrations/` (001–011) — the table below is a summary, not the DDL. Key tables:
 
 | Table | Columns |
 |---|---|
@@ -260,11 +274,17 @@ Notes:
 
 ## ▶️ Running the App
 
+For the UI, REST API and ML worker together, copy `.env.example` and
+`.streamlit/secrets.toml.example`, fill in credentials, then run:
+
 ```bash
-streamlit run app.py
+docker compose up --build
 ```
 
-The app opens at **http://localhost:8501**.
+The app opens at **http://localhost:8501**; the FastAPI docs are at
+**http://localhost:8000/docs**. The worker image needs the model files
+listed in [worker/README.md](worker/README.md). To run only the legacy
+native Streamlit path, unset `DATA_API_URL` before `streamlit run app.py`.
 
 ---
 
@@ -282,7 +302,7 @@ The app opens at **http://localhost:8501**.
 1. Open the app and choose **Student Portal** (or open your teacher's join link).
 2. Use **FaceID Scanner** to sign in. If your face isn't recognised, you'll be offered the registration form (name, PIN, optional voice sample). Alternatively sign in with **Student ID & PIN**.
 3. Join a class using **Enroll in subject** or the join link / QR code.
-4. Check your **Attended** and **Absent** history for each subject, and add extra face scans from the sidebar to improve recognition.
+4. Check your **Attended** and **Absent** history for each subject.
 
 ### Join Link Format
 ```
@@ -332,7 +352,7 @@ The repository ships with a `.devcontainer` configuration (Python 3.11), so you 
 | Supabase connection errors | Verify the URL / key and the table and column names above. |
 | Camera or microphone not working | Allow browser permissions and use `localhost` or HTTPS. |
 | "Liveness check" on a real face | Keep one full face centered in frame; use even lighting and avoid strong backlight or glare. |
-| Faces not recognised | Use good lighting, front-facing photos and higher-resolution images; add extra face scans from the student sidebar. |
+| Faces not recognised | Use good lighting and face the camera; students can also sign in with Student ID + PIN, or ask a teacher to mark attendance manually. |
 | Wrong student marked present | Lower the distance threshold (default `0.38`) in `face_pipeline.py` / `teacher_screen.py`, or fix the entry in **Attendance Records**. |
 
 ---

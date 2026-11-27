@@ -9,17 +9,14 @@ Supabase calls from this dialog.
 
 import streamlit as st
 
-from src.database.db import enroll_student_to_subject
+from src.database.rest_db import (
+    is_student_enrolled,
+    join_subject_by_code,
+    lookup_subject_by_join_code,
+)
 from src.components.dialog_utils import dialog_banner
 from src.ui.base_layout import is_dark_theme
 from src.ui.join_codes import validate_join_code as _validate_join_code_v2
-
-try:
-    from src.database.db import get_subject_by_join_code, is_student_enrolled
-except ImportError:  # pragma: no cover - db agent has not landed yet
-    get_subject_by_join_code = None  # type: ignore[assignment]
-    is_student_enrolled = None  # type: ignore[assignment]
-
 
 def validate_join_code(raw: str) -> str | None:
     """URL-decode and validate a join code. Returns the clean code or None.
@@ -69,11 +66,8 @@ def enroll_dialog():
         if not clean_code:
             st.warning("⚠️ Please enter a valid join code.")
             return
-        if get_subject_by_join_code is None:
-            st.error("Enrollment is not available yet. Please try again later.")
-            return
         try:
-            subject = get_subject_by_join_code(clean_code)
+            subject = lookup_subject_by_join_code(clean_code)
         except Exception:
             st.error("Could not look up that join code. Please try again.")
             return
@@ -93,7 +87,7 @@ def enroll_dialog():
             st.warning("⚠️ You are already enrolled in this subject!")
             return
         try:
-            enroll_student_to_subject(stud_id, subject["subject_id"])
+            join_subject_by_code(clean_code)
         except Exception:
             st.error("Could not enroll you. Please try again.")
             return

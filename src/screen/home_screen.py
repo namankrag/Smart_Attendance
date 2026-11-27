@@ -12,7 +12,7 @@ student_img = BASE_DIR / "img" / "student.png"
 teacher_img = BASE_DIR / "img" / "teacher.png"
 
 
-def home_screen():
+def home_screen(student_page, teacher_page):
 
     style_bg_home()
     style_base_layout()
@@ -66,7 +66,7 @@ def home_screen():
                     width="stretch",
                 ):
                     st.session_state["login_type"] = "student"
-                    st.rerun()
+                    st.switch_page(student_page)
 
     with col2:
         with st.container(border=True):
@@ -92,6 +92,6 @@ def home_screen():
                     width="stretch",
                 ):
                     st.session_state["login_type"] = "teacher"
-                    st.rerun()
+                    st.switch_page(teacher_page)
 
     footer_home()

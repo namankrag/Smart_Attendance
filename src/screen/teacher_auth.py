@@ -13,9 +13,13 @@ import streamlit as st
 
 from src.components.footer import footer_dashboard
 from src.components.header import header_dashboard, theme_toggle
-from src.database.db import (
+from src.database.rest_db import (
+    authenticate_teacher,
+    check_login_allowed,
     check_teacher_exists,
     create_teacher,
+    data_api_url,
+    record_login_attempt,
     teacher_login,
 )
 from src.database.logging_utils import log_exception
@@ -44,6 +48,46 @@ def _public_teacher_record(teacher: Dict[str, Any]) -> Dict[str, Any]:
         "name": teacher.get("name"),
         "username": teacher.get("username"),
     }
+
+
+def _authenticate_teacher(username: str, password: str):
+    """Rate-limit teacher password checks using the shared DB-backed policy."""
+    if data_api_url():
+        try:
+            return authenticate_teacher(username, password), False, "ok", None
+        except Exception:
+            ref = log_exception(logger, "teacher_login_failed", username=username)
+            return None, False, "error", ref
+    try:
+        allowed, _retry_after = check_login_allowed(username, kind="teacher")
+    except Exception:
+        ref = log_exception(logger, "teacher_login_rate_limit_check_failed",
+                            username=username)
+        return None, False, "unavailable", ref
+    if not allowed:
+        return None, False, "limited", None
+
+    needs_rehash = False
+    failed = False
+    try:
+        if teacher_login_with_rehash is not None:
+            result = teacher_login_with_rehash(username, password)
+            teacher, needs_rehash = result if result else (None, False)
+        else:
+            teacher = teacher_login(username, password)
+    except Exception:
+        ref = log_exception(logger, "teacher_login_failed", username=username)
+        teacher = None
+        failed = True
+    try:
+        record_login_attempt(username, kind="teacher", success=bool(teacher))
+    except Exception:
+        ref = log_exception(logger, "teacher_login_rate_limit_record_failed",
+                            username=username)
+        return None, False, "unavailable", ref
+    if teacher:
+        return teacher, needs_rehash, "ok", None
+    return None, False, "error" if failed else "invalid", ref if failed else None
 
 
 def register_teacher_action(
@@ -94,25 +138,14 @@ def teacher_scrn_login():
     with btn1:
         if st.button("Login", icon=":material/passkey:", width="stretch", key="btn_teacher_login"):
             if username and password:
-                login_error = False
-                needs_rehash = False
-                try:
-                    # Phase 1: prefer the rehash-reporting login so legacy
-                    # bcrypt hashes are transparently upgraded to Argon2id
-                    # on successful login (OWASP Password Storage Cheat
-                    # Sheet). Falls back to teacher_login when the Phase 1
-                    # helper has not landed.
-                    if teacher_login_with_rehash is not None:
-                        result = teacher_login_with_rehash(username, password)
-                        teacher, needs_rehash = result if result else (None, False)
-                    else:
-                        teacher = teacher_login(username, password)
-                except Exception:
-                    ref = log_exception(logger, "teacher_login_failed", username=username)
-                    teacher = None
-                    login_error = True
+                teacher, needs_rehash, status, ref = _authenticate_teacher(username, password)
+                if status == "limited":
+                    st.error("Too many failed sign-in attempts. Please wait and try again.")
+                elif status == "unavailable":
+                    st.error("Sign-in is unavailable right now. Please try again later.")
+                elif status == "error":
                     st.error(f"Login failed. Please try again. (Ref: {ref})")
-                if teacher:
+                elif teacher:
                     if needs_rehash:
                         # Phase 1 carry-over (a): write the new Argon2id
                         # hash back in the same login flow. A failed write
@@ -136,7 +169,7 @@ def teacher_scrn_login():
                     st.session_state.is_logged_in = True
                     st.toast(f"Welcome back, {teacher['name']}! 👋")
                     st.rerun()
-                elif not login_error:
+                else:
                     st.error("Invalid Username or Password")
             else:
                 st.warning("Please enter username and password")

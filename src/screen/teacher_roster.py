@@ -13,18 +13,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import streamlit as st
 
-from src.database.db import enroll_student_to_subject
+from src.database.rest_db import enroll_student_by_usn, enroll_student_to_subject
 from src.ui.fragments import records_table_fragment
 
 try:
-    from src.database.db import get_enrolled_students  # noqa: F401  (re-exported for callers)
+    from src.database.rest_db import get_enrolled_students  # noqa: F401  (re-exported for callers)
 except ImportError:  # pragma: no cover
     get_enrolled_students = None  # type: ignore[assignment]
-
-try:
-    from src.database.db import get_student_for_login
-except ImportError:  # pragma: no cover
-    get_student_for_login = None  # type: ignore[assignment]
 
 try:
     from src.database.roster import parse_roster_csv
@@ -115,10 +110,6 @@ def _roster_import_ui(teacher_id: Any, subjects: List[Dict[str, Any]]) -> None:
             key="btn_import_roster",
             disabled=not approve or not rows,
         ):
-            if get_student_for_login is None:
-                logger.error("get_student_for_login is unavailable; roster import refused")
-                st.error("Roster import is not available yet. Please try again later.")
-                return
             subject_id = sub_opts[roster_label]
             expected_code = sub_codes.get(roster_label, "")
             imported, failed = 0, 0
@@ -145,12 +136,12 @@ def _roster_import_ui(teacher_id: Any, subjects: List[Dict[str, Any]]) -> None:
                         if not usn:
                             failed += 1
                             continue
-                        student = get_student_for_login(usn)
-                        if not student:
+                        enrollment = enroll_student_by_usn(subject_id, usn)
+                        if not enrollment:
                             failed += 1
                             continue
-                        student_id = student["student_id"]
-                    enroll_student_to_subject(student_id, subject_id)
+                    else:
+                        enroll_student_to_subject(student_id, subject_id)
                     imported += 1
                 except Exception:
                     logger.exception("Roster import failed for a row")

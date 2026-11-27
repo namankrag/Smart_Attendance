@@ -17,7 +17,7 @@ from PIL import Image
 from src.database.timeutil import parse_iso_timestamp
 
 try:
-    from src.database.db import (
+    from src.database.rest_db import (
         get_student_for_login,
         check_login_allowed,
         record_login_attempt,
@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover - auth module has not landed yet
     hash_pin = None  # type: ignore[assignment]
 
 try:
-    from src.database.db import update_student_pin_hash
+    from src.database.rest_db import update_student_pin_hash
 except ImportError:  # pragma: no cover
     update_student_pin_hash = None  # type: ignore[assignment]
 
@@ -53,7 +53,7 @@ try:
     from src.pipelines.face_pipeline import find_duplicate_face_owner
 except ImportError:  # pragma: no cover
     try:
-        from src.database.db import find_duplicate_face_owner  # type: ignore[assignment]
+        from src.database.rest_db import find_duplicate_face_owner  # type: ignore[assignment]
     except ImportError:
         find_duplicate_face_owner = None  # type: ignore[assignment]
 

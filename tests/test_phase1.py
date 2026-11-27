@@ -227,6 +227,8 @@ def test_clear_session_on_logout_removes_namespaced_keys(monkeypatch):
         "login_pin_val": "1234",
         "login_face_input": "photo",
         "modal_face_update_pin": "1",
+        "_teacher_mfa_pending_secret": "temporary-secret",
+        "teacher_mfa_code": "123456",
         "supabase_access_token": "jwt",
         "current_teacher_tab": "take_attendance",
     }
@@ -237,12 +239,20 @@ def test_clear_session_on_logout_removes_namespaced_keys(monkeypatch):
     assert state["is_logged_in"] is False
     for key in list(state):
         assert not key.startswith(
-            ("smartclass_", "reg_", "login_pin_", "login_face", "modal_face_update")
+            (
+                "_teacher_mfa_",
+                "smartclass_",
+                "reg_",
+                "login_pin_",
+                "login_face",
+                "modal_face_update",
+            )
         )
         assert key not in (
             "student_data",
             "teacher_data",
             "supabase_access_token",
+            "teacher_mfa_code",
             "current_teacher_tab",
         )
 
