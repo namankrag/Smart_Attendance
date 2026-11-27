@@ -144,7 +144,7 @@ Smart_Attendance/
 ├── .streamlit/               # config.toml (XSRF/CORS on), secrets.toml.example
 ├── docs/privacy/             # privacy-notice.md, dpia.md, cancelable-templates.md
 ├── img/                      # header.png, NKA.png, student.png, teacher.png
-├── migrations/               # 001-011 (011: secure teacher session details)
+├── migrations/               # 001-012 (012: UUID primary-key defaults)
 ├── scripts/                  # evaluate_biometrics.py, pin_hash_helper.py
 ├── src/
 │   ├── database/
@@ -238,7 +238,7 @@ For local Docker runs, copy `.env.example` to `.env` and use the same random `AP
 
 > **Status: not deployed.** The deployment decision (Streamlit Community Cloud vs a container for the UI; Cloud Run vs Render for the worker) still needs Naman. Nothing below has been run against a hosted environment yet.
 
-1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`, `006_backfill_legacy_enrollment_dates.sql`, `007_student_self_enrollment.sql`, `008_teacher_mfa.sql`, `009_login_attempts_owner_rls.sql`, `010_restrict_anonymous_enrollment_rpcs.sql`, then `011_teacher_session_details.sql`. Migration 006 restores historical attendance counts; 007 adds ownership-checked roster and profile RPCs; 008 requires AAL2 for teacher data; 009 scopes rate-limit rows to the signed-in Supabase user; 010 removes anonymous access to enrollment RPCs; and 011 returns only names and USNs for a teacher's session. Back up (`pg_dump`) before each run. Never run migrations from the app.
+1. **Database:** create a Supabase project, enable the `vector` extension, and run the migrations **in order** from the Supabase SQL Editor — `migrations/001_phase0_core.sql`, `002_phase0_pin_enforcement.sql` (only after every student has a PIN hash), `003_fix_rls_recursion.sql`, `004_phase1_pgvector.sql`, `005_phase3_privacy.sql`, `006_backfill_legacy_enrollment_dates.sql`, `007_student_self_enrollment.sql`, `008_teacher_mfa.sql`, `009_login_attempts_owner_rls.sql`, `010_restrict_anonymous_enrollment_rpcs.sql`, `011_teacher_session_details.sql`, then `012_uuid_primary_key_defaults.sql`. Migration 006 restores historical attendance counts; 007 adds ownership-checked roster and profile RPCs; 008 requires AAL2 for teacher data; 009 scopes rate-limit rows to the signed-in Supabase user; 010 removes anonymous access to enrollment RPCs; 011 returns only names and USNs for a teacher's session; and 012 restores database-generated UUID defaults for student, teacher, and subject IDs. Back up (`pg_dump`) before each run. Never run migrations from the app.
 2. **Auth:** create a Google Cloud OAuth client with redirect `https://<your-project>.supabase.co/auth/v1/callback`, enable the Google provider in Supabase Auth, and set `expose_tokens = ["id", "access"]` in Streamlit's `[auth]` section. For this Streamlit ID-token bridge, enable **Skip nonce check** under Supabase **Authentication > Providers > Google**: Streamlit validates its OIDC nonce, while Supabase expects a hashed nonce that Streamlit does not send. This disables Supabase's second nonce check. The app exchanges those Google tokens for a Supabase session and sets each new student's `auth_user_id`; existing profiles still need their `auth_user_id` linked (without it, RLS returns zero rows by design).
 3. **FastAPI service:** bake the model weights into the worker image (`worker/models/` — the build fails if any weight is missing), set `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `API_INTERNAL_TOKEN`, `HF_TOKEN` and `DATABASE_URL` in the worker environment, and deploy the service. Check `GET /readyz` returns 200. The service validates Supabase access tokens and uses the caller's JWT for RLS-protected data requests.
 4. **UI:** deploy the Streamlit app with `SUPABASE_URL` + `SUPABASE_KEY` (anon) and `API_INTERNAL_TOKEN` in Streamlit secrets; set `DATA_API_URL` and `ML_WORKER_URL` to the FastAPI service. Keep XSRF/CORS protection on (`.streamlit/config.toml`).
@@ -251,7 +251,7 @@ Local Docker equivalent: `docker compose up --build` (UI on :8501, worker on :80
 
 ## 🗄️ Database Schema
 
-Apply the migrations in `migrations/` (001–011) — the table below is a summary, not the DDL. Key tables:
+Apply the migrations in `migrations/` (001–012) — the table below is a summary, not the DDL. Key tables:
 
 | Table | Columns |
 |---|---|
